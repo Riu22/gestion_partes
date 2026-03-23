@@ -13,15 +13,23 @@ public class obra {
     @Column(nullable = false)
     String nombre;
     @Column(nullable = false)
-    String direccion;
+    String ubicacion;
     @Column(nullable = false)
     String municipio;
     @Column(nullable = false)
     String poblacion;
 
     LocalDate fecha_inicio;
-    boolean activa = true;
+    boolean activa;
 
+    public obra (String nombre,String direccion,String municipio,String poblacion){
+        this.nombre = nombre;
+        this.ubicacion = direccion;
+        this.municipio = municipio;
+        this.poblacion = poblacion;
+        this.fecha_inicio = LocalDate.now();
+        this.activa = true;
+    }
     public Long getId() {
         return id;
     }
@@ -38,12 +46,12 @@ public class obra {
         this.nombre = nombre;
     }
 
-    public String getDireccion() {
-        return direccion;
+    public String getUbicacion() {
+        return ubicacion;
     }
 
-    public void setDireccion(String direccion) {
-        this.direccion = direccion;
+    public void setUbicacion(String ubicacion) {
+        this.ubicacion = ubicacion;
     }
 
     public String getMunicipio() {

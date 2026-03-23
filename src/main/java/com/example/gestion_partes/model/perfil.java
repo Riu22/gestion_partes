@@ -12,9 +12,16 @@ public class perfil {
     String email;
     @Column(name = "nombre_completo")
     String name;
-    @Column(EnumType.STRING)
+    @Enumerated(EnumType.STRING)
     user_rol rol;
     boolean activo = true;
+
+    public perfil(String email,String name,user_rol rol,boolean activo){
+        this.email = email;
+        this.name = name;
+        this.rol = rol;
+        this.activo = activo;
+    }
 
     public UUID getId() {
         return id;
