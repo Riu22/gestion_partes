@@ -16,11 +16,23 @@ public class perfil {
     user_rol rol;
     boolean activo = true;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "jefe_directo_id")
+    private perfil jefeDirecto;
+
     public perfil(String email,String name,user_rol rol,boolean activo){
         this.email = email;
         this.name = name;
         this.rol = rol;
         this.activo = activo;
+    }
+
+    public perfil getJefeDirecto() {
+        return jefeDirecto;
+    }
+
+    public void setJefeDirecto(perfil jefeDirecto) {
+        this.jefeDirecto = jefeDirecto;
     }
 
     public UUID getId() {

@@ -33,20 +33,17 @@ public class security_config {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMINISTRACION")
-                        // Agregamos una regla explícita para el endpoint de crear usuario si quieres
-                        .requestMatchers("/api/v1/user/create_user").hasRole("ADMINISTRACION")
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated() // Solo exige que estén autenticados
+                )                                 // El resto lo controlan los @PreAuthorize
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .jwtAuthenticationConverter(customJwtConverter)
-                                .decoder(jwtDecoder()) // Le decimos explícitamente qué decoder usar
+                                .decoder(jwtDecoder())
                         )
                 );
-
         return http.build();
     }
 

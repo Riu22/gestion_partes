@@ -5,5 +5,5 @@ public enum user_rol {
     OPERARIO,
     JEFE_DE_OBRA,
     ENCARGADO,
-    GERSTION
+    GESTION
 }

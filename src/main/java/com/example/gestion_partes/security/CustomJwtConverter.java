@@ -19,18 +19,25 @@ public class CustomJwtConverter implements Converter<Jwt, AbstractAuthentication
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Collection<GrantedAuthority> authorities = new ArrayList<>();
 
-        // 1. Extraemos los metadatos del usuario del token de Supabase
-        Map<String, Object> userMetadata = jwt.getClaimAsMap("user_metadata");
+        String rol = null;
 
-        if (userMetadata != null && userMetadata.containsKey("rol")) {
-            String rol = (String) userMetadata.get("rol");
+        // Supabase puede poner el rol en app_metadata o user_metadata
+        Map<String, Object> appMetadata = jwt.getClaimAsMap("app_metadata");
+        if (appMetadata != null && appMetadata.containsKey("rol")) {
+            rol = (String) appMetadata.get("rol");
+        }
 
-            // 2. IMPORTANTE: Le añadimos "ROLE_" para que Spring lo entienda como un rol
-            // Si en la DB es "ADMINISTRACION", aquí será "ROLE_ADMINISTRACION"
+        if (rol == null) {
+            Map<String, Object> userMetadata = jwt.getClaimAsMap("user_metadata");
+            if (userMetadata != null && userMetadata.containsKey("rol")) {
+                rol = (String) userMetadata.get("rol");
+            }
+        }
+
+        if (rol != null) {
             authorities.add(new SimpleGrantedAuthority("ROLE_" + rol.toUpperCase()));
         }
 
-        // 3. Devolvemos el token con las autoridades cargadas
         return new JwtAuthenticationToken(jwt, authorities);
     }
 }

@@ -1,15 +1,19 @@
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.dto.create_user_dto;
+import com.example.gestion_partes.dto.update_user_dto;
 import com.example.gestion_partes.model.perfil;
 import com.example.gestion_partes.repo.perfil_repo;
 import com.example.gestion_partes.service.user_service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -21,7 +25,6 @@ public class user_controller {
     @Autowired
     user_service user_service;
 
-    // Obtener los datos del usuario que está logueado actualmente
     @GetMapping("/me")
     public ResponseEntity<perfil> getMyProfile(Authentication authentication) {
         String email = authentication.getName();
@@ -29,9 +32,26 @@ public class user_controller {
     }
 
     @PostMapping("/create_user")
-    @PreAuthorize("hasRole('ADMINISTRACION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<String> create_user(@RequestBody create_user_dto new_user) {
         user_service.create_user(new_user);
         return new ResponseEntity<>("Usuario creado correctamente en Auth y Perfiles", HttpStatus.CREATED);
+    }
+
+    @DeleteMapping("/delete_user/{id}")
+    @PreAuthorize("hasRole('ADMINISTRACION')")
+    public ResponseEntity<String> delete_user(@PathVariable UUID id) {
+        try {
+            user_service.delete_user(id);
+            return new ResponseEntity<>("Usuario eliminado correctamente", HttpStatus.OK);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error al eliminar el usuario: " + e.getMessage());        }
+
+    }
+
+    @PutMapping("/update_user/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION', 'GESTION')")
+    public ResponseEntity<perfil> update_profile(@PathVariable UUID id, @RequestBody update_user_dto perfil_datos) {
+        return ResponseEntity.ok(user_service.update_profile(id, perfil_datos));
     }
 }
