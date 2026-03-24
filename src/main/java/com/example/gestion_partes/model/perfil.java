@@ -19,6 +19,7 @@ public class perfil {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
     private perfil jefeDirecto;
+    public perfil(){}
 
     public perfil(String email,String name,user_rol rol,boolean activo){
         this.email = email;

@@ -22,7 +22,10 @@ public class obra {
     LocalDate fecha_inicio;
     boolean activa;
 
-    public obra (String nombre,String direccion,String municipio,String poblacion){
+    public obra() {
+    }
+
+    public obra (String nombre, String direccion, String municipio, String poblacion){
         this.nombre = nombre;
         this.ubicacion = direccion;
         this.municipio = municipio;

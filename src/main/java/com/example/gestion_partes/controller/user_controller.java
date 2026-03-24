@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -27,8 +28,14 @@ public class user_controller {
 
     @GetMapping("/me")
     public ResponseEntity<perfil> getMyProfile(Authentication authentication) {
-        String email = authentication.getName();
-        return ResponseEntity.ok(perfil_repo.findByEmail(email).orElseThrow());
+        // Convertimos el String del sub a UUID
+        UUID userId = UUID.fromString(authentication.getName());
+
+        System.out.println(">>> Buscando perfil por ID: " + userId);
+
+        return ResponseEntity.ok(perfil_repo.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Perfil no encontrado para el ID: " + userId)));
     }
 
     @PostMapping("/create_user")
