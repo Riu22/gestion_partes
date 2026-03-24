@@ -1,11 +1,13 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "obras", schema = "public")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class obra {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

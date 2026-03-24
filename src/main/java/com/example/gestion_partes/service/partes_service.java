@@ -8,6 +8,7 @@ import com.example.gestion_partes.model.user_rol;
 import com.example.gestion_partes.repo.obra_repo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
 import com.example.gestion_partes.repo.perfil_repo;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,8 +25,9 @@ public class partes_service {
     @Autowired
     obra_repo obra_repo;
 
-    public partes_trabajo create_parte(partes_dto dto, String emailAutenticado) {
-        perfil solicitante = perfil_repo.findByEmail(emailAutenticado)
+    @Transactional
+    public partes_trabajo create_parte(partes_dto dto, UUID Autenticado) {
+        perfil solicitante = perfil_repo.findById(Autenticado)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
 
         // Solo GESTION/ADMIN pueden crear partes para otros usuarios
@@ -55,31 +57,39 @@ public class partes_service {
         return partes_trabajo_repo.save(new_parte);
     }
 
-    public List<partes_trabajo> get_partes_jerarquico(String emailAutenticado) {
-        perfil usuario = perfil_repo.findByEmail(emailAutenticado)
+    // Cambiamos el parámetro a UUID para que coincida con lo que envía el Token
+    public List<partes_trabajo> get_partes_jerarquico(UUID usuarioId) {
+        // Buscamos por ID (Clave primaria), no por Email
+        perfil usuario = perfil_repo.findById(usuarioId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
 
         if (usuario.getRol() == user_rol.ADMINISTRACION || usuario.getRol() == user_rol.GESTION) {
             return partes_trabajo_repo.findAll();
         }
+
         if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
             return partes_trabajo_repo.findPartesParaJefeObra(usuario.getId());
         }
+
         if (usuario.getRol() == user_rol.ENCARGADO) {
             return partes_trabajo_repo.findPartesParaEncargado(usuario.getId());
         }
+
         // OPERARIO: solo los suyos
         return partes_trabajo_repo.findByPerfilId(usuario.getId());
     }
 
-    public void validar_parte(Long parteId, String emailRevisor) {
+    public void validar_parte(Long parteId, UUID revisorId) { // <--- Cambiado a UUID
         partes_trabajo parte = partes_trabajo_repo.findById(parteId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parte no encontrado"));
 
-        perfil revisor = perfil_repo.findByEmail(emailRevisor)
+        // Buscamos por ID, no por Email
+        perfil revisor = perfil_repo.findById(revisorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Revisor no encontrado"));
 
-        // ADMIN y GESTION validan todo
+        // A partir de aquí, el resto de tu lógica de jerarquía ya debería funcionar
+        // porque comparas IDs (revisor.getId()), lo cual es correcto.
+
         if (revisor.getRol() == user_rol.ADMINISTRACION || revisor.getRol() == user_rol.GESTION) {
             marcarComoFirmado(parte);
             return;
@@ -87,13 +97,11 @@ public class partes_service {
 
         perfil jefeDirecto = parte.getPerfil().getJefeDirecto();
 
-        // ENCARGADO: es el jefe directo del operario
         if (jefeDirecto != null && jefeDirecto.getId().equals(revisor.getId())) {
             marcarComoFirmado(parte);
             return;
         }
 
-        // JEFE DE OBRA: es el jefe del encargado
         if (jefeDirecto != null && jefeDirecto.getJefeDirecto() != null
                 && jefeDirecto.getJefeDirecto().getId().equals(revisor.getId())) {
             marcarComoFirmado(parte);

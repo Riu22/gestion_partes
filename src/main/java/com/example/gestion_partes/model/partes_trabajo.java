@@ -1,27 +1,29 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "partes_trabajo", schema = "public")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class partes_trabajo {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "point_obra_id", nullable = false) // Coincide con el SQL
     private obra obra;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "usuario_id", nullable = false) // Coincide con el SQL
     private perfil perfil;
 
     private LocalDate fecha;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT",name = "descripcion_tareas")
     private String descripcion;
 
     @Column(name = "horas_normales")

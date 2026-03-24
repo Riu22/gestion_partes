@@ -1,11 +1,13 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 import java.util.UUID;
 
 @Entity
 @Table(name = "perfiles", schema = "public")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class perfil {
     @Id
     UUID id;
@@ -18,7 +20,9 @@ public class perfil {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
+    @JsonIgnoreProperties({"jefeDirecto", "handler", "hibernateLazyInitializer"}) // <--- ESTO ES CLAVE
     private perfil jefeDirecto;
+
     public perfil(){}
 
     public perfil(String email,String name,user_rol rol,boolean activo){

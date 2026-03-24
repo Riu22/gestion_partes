@@ -9,6 +9,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @CrossOrigin(origins = "*")
 @RequestMapping("api/v1/partes")
@@ -17,20 +21,25 @@ public class partes_controller {
     @Autowired
     partes_service partes_service;
 
-    // Cualquier rol autenticado puede crear un parte (el servicio valida que sea el suyo)
     @PostMapping("/new_parte")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<partes_trabajo> create_parte(
             @RequestBody partes_dto new_partes,
             Authentication auth) {
-        return ResponseEntity.ok(partes_service.create_parte(new_partes, auth.getName()));
+        UUID userId = UUID.fromString(auth.getName());
+        return ResponseEntity.ok(partes_service.create_parte(new_partes, userId));
     }
 
     // GET, no POST — no se envía cuerpo para listar
     @GetMapping("/get_partes")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> get_partes(Authentication auth) {
-        return ResponseEntity.ok(partes_service.get_partes_jerarquico(auth.getName()));
+        UUID userId = UUID.fromString(auth.getName());
+        List<partes_trabajo> lista = partes_service.get_partes_jerarquico(userId);
+
+        // ESTO TE DIRÁ LA VERDAD EN LA CONSOLA DE INTELLIJ
+        System.out.println("DEBUG: Se han encontrado " + lista.size() + " partes en la DB");
+
+        return ResponseEntity.ok(lista);
     }
 
     @PutMapping("/validar/{parteId}")
@@ -38,7 +47,8 @@ public class partes_controller {
     public ResponseEntity<?> validar_parte(
             @PathVariable Long parteId,
             Authentication auth) {
-        partes_service.validar_parte(parteId, auth.getName());
+        UUID revisorId = UUID.fromString(auth.getName());
+        partes_service.validar_parte(parteId, revisorId);
         return ResponseEntity.ok("Parte validado correctamente");
     }
 
