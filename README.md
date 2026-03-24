@@ -2,7 +2,7 @@
 
 ![Java](https://img.shields.io/badge/Java-17-orange?style=for-the-badge&logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.12-brightgreen?style=for-the-badge&logo=spring)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-latest-blue?style=for-the-badge&logo=postgresql)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-blue?style=for-the-badge&logo=supabase)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-informational?style=for-the-badge&logo=openapiinitiative)
 
 Este proyecto es un backend robusto diseñado para la **Gestión de Partes de Trabajo**, construido sobre **Spring Boot 3.5**. Utiliza una arquitectura orientada a servicios, seguridad basada en tokens JWT y documentación automatizada bajo el estándar OpenAPI.
@@ -31,75 +31,102 @@ Para probar los endpoints protegidos desde la interfaz de Swagger:
 ### 1. Requisitos Previos
 * **JDK 17** o superior.
 * **Maven 3.8+**.
-* **PostgreSQL** instalado y configurado.
+* **Docker & Docker Compose** - para la instancia local de Supabase.
 
-### 2. Configuración del Entorno
-Edita tu archivo `src/main/resources/application.properties` con los parámetros correspondientes:
+### 2. Configuración de Supabase Local (Docker)
+1. Navega a la carpeta `supabase/docker/` y ejecuta:
+   ```bash
+   docker-compose -f docker-compose.yml up -d
+   ```
+2. Espera a que todos los servicios se inicialicen (2-3 minutos).
+3. Accede a la **Interfaz de Supabase** en [http://localhost:8080](http://localhost:8080)
+4. Abre el **SQL Editor** en la interfaz de Supabase
+5. Copia y pega el contenido del archivo `sql/developer.sql` y ejecuta el script
+
+### 3. Configuración del Entorno
+Edita tu archivo `src/main/resources/application.properties`:
 
 ```properties
-# Configuración de Base de Datos
-spring.datasource.url=jdbc:postgresql://localhost:5432/gestion_partes_db
-spring.datasource.username=tu_usuario
-spring.datasource.password=tu_contraseña
+# Configuración de Base de Datos (Supabase Local)
+spring.datasource.url=jdbc:postgresql://localhost:8081/postgres
+spring.datasource.username=postgres
+spring.datasource.password=postgres
 
 # Seguridad JWT (Se requiere una clave de al menos 64 caracteres para HS256)
 jwt.secret=tu_clave_secreta_super_segura_y_muy_larga_para_evitar_errores_de_seguridad
 ```
 ---
-# 🛠️ Especificaciones Técnicas
-Este proyecto se basa en el ecosistema de Spring para garantizar escalabilidad y mantenibilidad.
 
-Framework Principal: Spring Boot 3.2.x (Java 17).
+## 🛠️ Especificaciones Técnicas
 
-Persistencia: Spring Data JPA con Hibernate como ORM.
+El proyecto se basa en el ecosistema de **Spring** para garantizar escalabilidad y mantenibilidad.
 
-Seguridad: Spring Security con autenticación basada en JWT (JSON Web Tokens).
+| Componente | Detalles |
+|-----------|----------|
+| **Framework Principal** | Spring Boot 3.5.12 (Java 17) |
+| **Persistencia** | Spring Data JPA con Hibernate |
+| **Base de Datos** | Supabase Local (PostgreSQL vía Docker) |
+| **Seguridad** | Spring Security + JWT |
+| **Validación** | Bean Validation (JSR-380) |
+| **Documentación** | SpringDoc OpenAPI (Swagger) |
+| **Gestión de Dependencias** | Maven |
 
-Validación: Bean Validation (JSR-380) para asegurar la integridad de los datos de entrada.
+---
 
-Documentación: SpringDoc OpenAPI para la generación automática de Swagger.
+## 📂 Estructura del Proyecto
 
-Gestión de Dependencias: Maven.
+El proyecto sigue una **Arquitectura por Capas** para separar responsabilidades:
 
-📂 Estructura del Proyecto
-El proyecto sigue una arquitectura Layered Architecture (Arquitectura por Capas) para separar responsabilidades:
+```
+src/main/java/com/example/gestion_partes/
+├── 📁 config/           # Configuraciones globales (Seguridad, Swagger, CORS)
+├── 📁 controller/       # Capa de entrada (REST Controllers)
+├── 📁 dto/              # Objetos de transferencia de datos
+├── 📁 model/            # Modelos de datos (Entidades JPA)
+├── 📁 repo/             # Repositorios (Acceso a datos)
+├── 📁 service/          # Capa de negocio (Lógica y casos de uso)
+└── 📁 resources/        # Configuración de la aplicación
+```
 
-Plaintext
-src/main/java/com/tuempresa/gestionpartes/
-├── 📁 config          # Configuraciones globales (Seguridad, Swagger, CORS)
-├── 📁 controllers     # Capa de entrada (REST Controllers)
-├── 📁 dtos            # Objetos de transferencia de datos (Request/Response)
-├── 📁 entities        # Modelos de datos (Mapeo JPA/PostgreSQL)
-├── 📁 exceptions      # Manejo global de errores y excepciones personalizadas
-├── 📁 repositories    # Interfaz de comunicación con la base de datos
-├── 📁 security        # Lógica de JWT, Filtros y detalles de usuario
-└── 📁 services        # Capa de negocio (Lógica y casos de uso)
-    └── 📁 impl        # Implementaciones de las interfaces de servicio
-🚀 Guía de Instalación y Ejecución
-1. Clonar el repositorio
-Bash
-git clone https://github.com/tu-usuario/gestion-partes-api.git
-cd gestion-partes-api
-2. Configurar la Base de Datos
-Asegúrate de tener PostgreSQL corriendo. Crea una base de datos llamada gestion_partes_db:
+---
 
-SQL
-CREATE DATABASE gestion_partes_db;
-3. Configurar variables de entorno
-Edita el archivo src/main/resources/application.properties (o usa variables de entorno) con tus credenciales:
+## 🚀 Guía Rápida de Inicio
 
-Properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/gestion_partes_db
-spring.datasource.username=tu_usuario
-spring.datasource.password=tu_contraseña
-jwt.secret=${JWT_SECRET:una_clave_muy_larga_de_al_menos_64_caracteres_para_seguridad}
-4. Compilar y Ejecutar
-Puedes lanzar la aplicación usando Maven desde la raíz del proyecto:
+### 1️⃣ Clonar el Repositorio
 
-Bash
-# Limpiar e instalar dependencias
+```bash
+git clone https://github.com/Riu22/gestion_partes.git
+cd gestion_partes
+```
+
+### 2️⃣ Compilar y Ejecutar
+
+```bash
+# Instalar dependencias
 mvn clean install
 
 # Ejecutar la aplicación
 mvn spring-boot:run
-La API estará disponible en http://localhost:8080.
+```
+
+La API estará disponible en: **http://localhost:8081**
+
+---
+
+## 🗄️ Scripts SQL Disponibles
+
+El proyecto incluye dos scripts SQL en la carpeta `sql/`:
+
+| Script | Propósito | Uso |
+|--------|-----------|-----|
+| **developer.sql** | Esquema completo para desarrollo con datos de prueba | Ejecutar en Supabase durante setup inicial |
+| **prod.sql** | Esquema optimizado para producción | Usar en ambiente de producción |
+
+### Ejecutar Scripts en Supabase Local
+
+1. Accede a la interfaz de Supabase en [http://localhost:8080](http://localhost:8080)
+2. Ve a **SQL Editor** en el menú lateral
+3. Haz clic en **New Query**
+4. Copia y pega el contenido del archivo `sql/developer.sql`
+5. Ejecuta la query (botón Play o Ctrl+Enter)
+

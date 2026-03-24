@@ -1,4 +1,4 @@
-package com.example.gestion_partes.security;
+package com.example.gestion_partes.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

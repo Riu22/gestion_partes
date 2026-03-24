@@ -1,6 +1,5 @@
-package com.example.gestion_partes.security;
+package com.example.gestion_partes.config;
 
-import com.example.gestion_partes.config.CustomJwtConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
