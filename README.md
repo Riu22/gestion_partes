@@ -44,7 +44,8 @@ spring.datasource.password=tu_contraseña
 
 # Seguridad JWT (Se requiere una clave de al menos 64 caracteres para HS256)
 jwt.secret=tu_clave_secreta_super_segura_y_muy_larga_para_evitar_errores_de_seguridad
-🛠️ Especificaciones Técnicas
+---
+###🛠️ Especificaciones Técnicas
 Este proyecto se basa en el ecosistema de Spring para garantizar escalabilidad y mantenibilidad.
 
 Framework Principal: Spring Boot 3.2.x (Java 17).
