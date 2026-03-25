@@ -14,9 +14,7 @@ Este proyecto es un backend robusto diseñado para la **Gestión de Partes de Tr
 La API implementa **SpringDoc OpenAPI**, lo que permite tener una documentación viva y siempre actualizada que refleja los cambios en el código al instante.
 
 ### 🔗 Enlaces de Interés
-* **Swagger UI (Interfaz Visual):** [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-* **Especificación OpenAPI (JSON):** [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
-* **Especificación OpenAPI (YAML):** [http://localhost:8080/v3/api-docs.yaml](http://localhost:8080/v3/api-docs.yaml)
+* **Swagger UI (Interfaz Visual):** [http://localhost:8081/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
 ### 🔐 Pruebas con Seguridad (JWT)
 Para probar los endpoints protegidos desde la interfaz de Swagger:

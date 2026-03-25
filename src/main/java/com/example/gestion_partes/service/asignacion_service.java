@@ -106,4 +106,23 @@ public class asignacion_service {
         }
         asignacion_obra_repo.deleteById(asignacionId);
     }
+
+    public List<asignacion_obra> get_mis_obras(UUID id) {
+        perfil usuario = perfil_repo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+
+        // GESTION y ADMIN tienen visibilidad total — no necesitan este endpoint
+        // JEFE y ENCARGADO: sus obras directas
+        if (usuario.getRol() == user_rol.JEFE_DE_OBRA ||
+                usuario.getRol() == user_rol.ENCARGADO) {
+            return asignacion_obra_repo.findByPerfilId(id);
+        }
+
+        // OPERARIO: las obras de su encargado
+        if (usuario.getRol() == user_rol.OPERARIO) {
+            return asignacion_obra_repo.findObrasDeEncargadoDeOperario(id);
+        }
+
+        return List.of();
+    }
 }

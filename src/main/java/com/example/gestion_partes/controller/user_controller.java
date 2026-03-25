@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,5 +61,11 @@ public class user_controller {
     @PreAuthorize("hasAnyRole('ADMINISTRACION', 'GESTION')")
     public ResponseEntity<perfil> update_profile(@PathVariable UUID id, @RequestBody update_user_dto perfil_datos) {
         return ResponseEntity.ok(user_service.update_profile(id, perfil_datos));
+    }
+
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<List<perfil>> get_all_users() {
+        return ResponseEntity.ok(perfil_repo.findAll());
     }
 }

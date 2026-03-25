@@ -6,6 +6,7 @@ import com.example.gestion_partes.service.asignacion_service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -69,5 +70,11 @@ public class asignacion_controller {
             @PathVariable Long asignacionId) {
         asignacion_service.eliminar_asignacion_obra(asignacionId);
         return ResponseEntity.ok().build();
+    }
+    @GetMapping("/mis_obras")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<asignacion_obra>> get_mis_obras(Authentication auth) {
+        UUID id = UUID.fromString(auth.getName());
+        return ResponseEntity.ok(asignacion_service.get_mis_obras(id));
     }
 }
