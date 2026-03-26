@@ -6,7 +6,6 @@ import com.example.gestion_partes.model.perfil;
 import com.example.gestion_partes.repo.perfil_repo;
 import com.example.gestion_partes.service.user_service;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
