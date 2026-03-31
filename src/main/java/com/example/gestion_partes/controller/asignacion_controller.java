@@ -71,6 +71,21 @@ public class asignacion_controller {
         asignacion_service.eliminar_asignacion_obra(asignacionId);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/{jefeId}/subordinados")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<List<perfil>> get_subordinados_de(@PathVariable UUID jefeId) {
+        return ResponseEntity.ok(asignacion_service.get_mis_subordinados(jefeId));
+    }
+
+    // 2. Endpoint para quitar un jefe directo (el botón de eliminar en Flutter)
+    @DeleteMapping("/quitar_subordinado/{usuarioId}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<?> quitar_subordinado(@PathVariable UUID usuarioId) {
+        // En tu service, este método debe poner jefe_directo = null
+        asignacion_service.quitar_jefe_directo(usuarioId);
+        return ResponseEntity.ok().build();
+    }
     @GetMapping("/mis_obras")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<asignacion_obra>> get_mis_obras(Authentication auth) {

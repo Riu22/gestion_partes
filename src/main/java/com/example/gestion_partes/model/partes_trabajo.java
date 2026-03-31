@@ -2,6 +2,8 @@ package com.example.gestion_partes.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 
@@ -31,6 +33,13 @@ public class partes_trabajo {
 
     @Column(name = "horas_extra")
     private Double horas_extra = 0.0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "especialidad")
+    private especialidad especialidad;
+
+    public especialidad getEspecialidad() { return especialidad; }
+    public void setEspecialidad(especialidad especialidad) { this.especialidad = especialidad; }
 
     private boolean firmado = false;
     public partes_trabajo() {
@@ -72,9 +81,15 @@ public class partes_trabajo {
     }
 
     public void setFecha(LocalDate fecha) {
+        LocalDate limiteMinimo = LocalDate.now().minusWeeks(2);
+        if (fecha.isBefore(limiteMinimo)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No puedes crear partes con más de 2 semanas de antigüedad"
+            );
+        }
         this.fecha = fecha;
     }
-
     public String getDescripcion() {
         return descripcion;
     }

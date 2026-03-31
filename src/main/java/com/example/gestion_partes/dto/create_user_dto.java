@@ -1,5 +1,6 @@
 package com.example.gestion_partes.dto;
 
+import com.example.gestion_partes.model.especialidad;
 import com.example.gestion_partes.model.user_rol;
 
 public record create_user_dto(
@@ -7,6 +8,8 @@ public record create_user_dto(
         String name,
         String password,
         user_rol rol,
-        boolean activo
+        String codigo,
+        boolean activo,
+        especialidad especialidad
 ) {
 }

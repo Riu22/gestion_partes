@@ -2,6 +2,8 @@ package com.example.gestion_partes.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.UUID;
 
@@ -15,8 +17,11 @@ public class perfil {
     @Column(name = "nombre_completo")
     String name;
     @Enumerated(EnumType.STRING)
+    @Column(name = "rol", columnDefinition = "usuario_rol")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     user_rol rol;
     boolean activo = true;
+    String codigo;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
@@ -78,5 +83,13 @@ public class perfil {
 
     public void setActivo(boolean activo) {
         this.activo = activo;
+    }
+
+    public String getCodigo() {
+        return codigo;
+    }
+
+    public void setCodigo(String codigo) {
+        this.codigo = codigo;
     }
 }
