@@ -10,7 +10,6 @@ public record create_user_dto(
         user_rol rol,
         String codigo,
         boolean activo,
-        especialidad especialidad,
         Boolean postventa
 ) {
 }
