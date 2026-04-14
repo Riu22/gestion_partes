@@ -43,7 +43,9 @@ public class user_service {
         if (datosNuevos.rol() != null) perfilExistente.setRol(datosNuevos.rol());
         if (datosNuevos.activo() != null) perfilExistente.setActivo(datosNuevos.activo());
         if (datosNuevos.codigo() != null) perfilExistente.setCodigo(datosNuevos.codigo());
-
+        if (datosNuevos.postventa() != null) {
+            perfilExistente.setPostventa(datosNuevos.postventa());
+        }
         return user_repo.save(perfilExistente);
     }
 
@@ -62,25 +64,29 @@ public class user_service {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("rol", new_user.rol().toString());
         metadata.put("full_name", new_user.name());
-        // El código se guarda en perfiles directamente después de crear el usuario
         body.put("user_metadata", metadata);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
         try {
-            var response = rest_template.postForEntity(url, request, String.class);
-            // Si viene código, actualizamos el perfil recién creado
-            if (new_user.codigo() != null) {
-                // Pequeña espera para que el trigger cree el perfil
+            rest_template.postForEntity(url, request, String.class);
+
+            // Thread.sleep fuera del lambda para evitar InterruptedException
+            if (new_user.codigo() != null || new_user.postventa() != null) {
                 Thread.sleep(500);
                 user_repo.findByEmail(new_user.email()).ifPresent(p -> {
-                    p.setCodigo(new_user.codigo());
+                    if (new_user.codigo() != null) p.setCodigo(new_user.codigo());
+                    if (new_user.postventa() != null) p.setPostventa(new_user.postventa());
                     user_repo.save(p);
                 });
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Hilo interrumpido al crear usuario: " + e.getMessage());
         } catch (Exception e) {
             throw new RuntimeException("Error al crear usuario: " + e.getMessage());
         }
     }
+
     public void delete_user(UUID id) {
         String url = supabase_url + "/auth/v1/admin/users/" + id;
 

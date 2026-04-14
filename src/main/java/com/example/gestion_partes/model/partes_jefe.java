@@ -23,7 +23,6 @@ public class partes_jefe {
     @Column(name = "descripcion_tareas", columnDefinition = "TEXT")
     private String descripcion;
 
-    private boolean firmado = false;
 
     @OneToMany(mappedBy = "parteJefe", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<partes_jefe_obra> obras = new ArrayList<>();
@@ -38,8 +37,6 @@ public class partes_jefe {
     public void setFecha(LocalDate fecha) { this.fecha = fecha; }
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
-    public boolean isFirmado() { return firmado; }
-    public void setFirmado(boolean firmado) { this.firmado = firmado; }
     public List<partes_jefe_obra> getObras() { return obras; }
     public void setObras(List<partes_jefe_obra> obras) { this.obras = obras; }
 }

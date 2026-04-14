@@ -41,7 +41,6 @@ public class partes_trabajo {
     public especialidad getEspecialidad() { return especialidad; }
     public void setEspecialidad(especialidad especialidad) { this.especialidad = especialidad; }
 
-    private boolean firmado = false;
     public partes_trabajo() {
     }
 
@@ -112,13 +111,5 @@ public class partes_trabajo {
 
     public void setHoras_extra(Double horas_extra) {
         this.horas_extra = horas_extra;
-    }
-
-    public boolean isFirmado() {
-        return firmado;
-    }
-
-    public void setFirmado(boolean firmado) {
-        this.firmado = firmado;
     }
 }

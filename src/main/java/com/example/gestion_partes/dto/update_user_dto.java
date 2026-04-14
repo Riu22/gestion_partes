@@ -6,6 +6,7 @@ public record update_user_dto(
         String name,
         user_rol rol,
         Boolean activo,
-        String codigo
+        String codigo,
+        Boolean postventa
 )
 {}

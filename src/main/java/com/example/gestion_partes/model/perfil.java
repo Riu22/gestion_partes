@@ -22,6 +22,8 @@ public class perfil {
     user_rol rol;
     boolean activo = true;
     String codigo;
+    @Column(name = "postventa")
+    private Boolean postventa = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
@@ -91,5 +93,13 @@ public class perfil {
 
     public void setCodigo(String codigo) {
         this.codigo = codigo;
+    }
+
+    public Boolean getPostventa() {
+        return postventa;
+    }
+
+    public void setPostventa(Boolean postventa) {
+        this.postventa = postventa;
     }
 }

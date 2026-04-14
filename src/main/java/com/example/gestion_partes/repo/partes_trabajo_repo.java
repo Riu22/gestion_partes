@@ -1,5 +1,6 @@
 package com.example.gestion_partes.repo;
 
+import com.example.gestion_partes.dto.quincena_dto;
 import com.example.gestion_partes.model.partes_trabajo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -37,5 +38,16 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("obra") String obra,
             @Param("operario") String operario,
             @Param("especialidad") String especialidad
+    );
+
+    @Query("SELECT p.perfil.codigo as codigo, p.perfil.name as nombre, " +
+            "p.obra.nombre as obra, SUM(p.horas_normales) as total_horas " +
+            "FROM partes_trabajo p " +
+            "WHERE p.fecha BETWEEN :desde AND :hasta " +
+            "GROUP BY p.perfil.codigo, p.perfil.name, p.obra.nombre " +
+            "ORDER BY p.perfil.name, p.obra.nombre")
+    List<quincena_dto> getResumenQuincena(
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta
     );
 }

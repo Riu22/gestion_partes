@@ -33,6 +33,7 @@ public class CustomJwtConverter implements Converter<Jwt, AbstractAuthentication
                 rol = (String) userMetadata.get("rol");
             }
         }
+        System.out.println(">>> ROL EXTRAÍDO DEL JWT: " + rol); // LOG TEMPORAL
 
         if (rol != null) {
             authorities.add(new SimpleGrantedAuthority("ROLE_" + rol.toUpperCase()));

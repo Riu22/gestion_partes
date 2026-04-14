@@ -22,8 +22,7 @@ public class partes_controller {
 
     @Autowired partes_service partes_service;
     @Autowired parte_jefe_service parte_jefe_service;
-    @Autowired
-    partes_trabajo_repo partes_trabajo_repo;
+    @Autowired partes_trabajo_repo partes_trabajo_repo;
 
     // ─── PARTES OPERARIO / ENCARGADO ───────────────────────────
 
@@ -41,14 +40,6 @@ public class partes_controller {
         return ResponseEntity.ok(partes_service.get_partes_jerarquico(auth.getName()));
     }
 
-    @PutMapping("/validar/{parteId}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','ENCARGADO','JEFE_DE_OBRA')")
-    public ResponseEntity<?> validar_parte(
-            @PathVariable Long parteId,
-            Authentication auth) {
-        partes_service.validar_parte(parteId, auth.getName());
-        return ResponseEntity.ok("Parte validado correctamente");
-    }
 
     @DeleteMapping("/delete/{parteId}")
     @PreAuthorize("hasRole('ADMINISTRACION')")
@@ -116,5 +107,14 @@ public class partes_controller {
 
         // Ahora pasamos 'especialidadParaQuery' que es un String, no un Enum
         return ResponseEntity.ok(partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
+    }
+    @PutMapping("/update/{parteId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<partes_trabajo> update_parte(
+            @PathVariable Long parteId,
+            @RequestBody partes_dto dto,
+            Authentication auth) {
+        return ResponseEntity.ok(
+                partes_service.update_parte(parteId, dto, auth.getName()));
     }
 }

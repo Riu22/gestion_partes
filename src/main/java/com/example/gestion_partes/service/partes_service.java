@@ -65,7 +65,6 @@ public class partes_service {
         nuevo.setHoras_normales(dto.horas_normales() != null ? dto.horas_normales() : 8.0);
         nuevo.setHoras_extra(0.0); // siempre 0, se elimina del formulario
         nuevo.setEspecialidad(dto.especialidad());
-        nuevo.setFirmado(false);
 
         return partes_trabajo_repo.save(nuevo);
     }
@@ -88,38 +87,6 @@ public class partes_service {
         return partes_trabajo_repo.findByPerfilId(usuario.getId());
     }
 
-    public void validar_parte(Long parteId, String sub) {
-        partes_trabajo parte = partes_trabajo_repo.findById(parteId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Parte no encontrado"));
-        perfil revisor = perfil_repo.findById(UUID.fromString(sub))
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Revisor no encontrado"));
-
-        if (revisor.getRol() == user_rol.ADMINISTRACION
-                || revisor.getRol() == user_rol.GESTION) {
-            marcarComoFirmado(parte);
-            return;
-        }
-
-        perfil jefeDirecto = parte.getPerfil().getJefeDirecto();
-
-        // ENCARGADO: es el jefe directo del operario
-        if (jefeDirecto != null && jefeDirecto.getId().equals(revisor.getId())) {
-            marcarComoFirmado(parte);
-            return;
-        }
-
-        // JEFE DE OBRA: es el jefe del encargado
-        if (jefeDirecto != null && jefeDirecto.getJefeDirecto() != null
-                && jefeDirecto.getJefeDirecto().getId().equals(revisor.getId())) {
-            marcarComoFirmado(parte);
-            return;
-        }
-
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                "No tienes autoridad para validar este parte");
-    }
 
     public void delete_parte(Long parteId) {
         if (!partes_trabajo_repo.existsById(parteId)) {
@@ -127,9 +94,41 @@ public class partes_service {
         }
         partes_trabajo_repo.deleteById(parteId);
     }
+    public partes_trabajo update_parte(Long parteId, partes_dto dto, String sub) {
+        partes_trabajo parte = partes_trabajo_repo.findById(parteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Parte no encontrado"));
 
-    private void marcarComoFirmado(partes_trabajo parte) {
-        parte.setFirmado(true);
-        partes_trabajo_repo.save(parte);
+        perfil solicitante = perfil_repo.findById(UUID.fromString(sub))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+
+        // Solo el propio usuario o gestión/admin pueden editar
+        boolean esGestor = solicitante.getRol() == user_rol.ADMINISTRACION
+                || solicitante.getRol() == user_rol.GESTION;
+        if (!esGestor && !parte.getPerfil().getId().equals(solicitante.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No puedes editar partes de otros usuarios");
+        }
+
+        // Validar límite de 2 semanas
+        LocalDate limiteMinimo = LocalDate.now().minusWeeks(2);
+        if (parte.getFecha().isBefore(limiteMinimo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No puedes editar partes con más de 2 semanas de antigüedad");
+        }
+
+        if (dto.id_obra() != null) {
+            obra obra = obra_repo.findById(dto.id_obra())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND, "Obra no encontrada"));
+            parte.setObra(obra);
+        }
+        if (dto.fecha() != null) parte.setFecha(dto.fecha());
+        if (dto.horas_normales() != null) parte.setHoras_normales(dto.horas_normales());
+        if (dto.descripcion() != null) parte.setDescripcion(dto.descripcion());
+        if (dto.especialidad() != null) parte.setEspecialidad(dto.especialidad());
+
+        return partes_trabajo_repo.save(parte);
     }
 }

@@ -45,7 +45,6 @@ public class parte_jefe_service {
         partes_jefe nuevo = new partes_jefe();
         nuevo.setPerfil(jefe);
         nuevo.setDescripcion(partes_jefe_dto.descripcion());
-        nuevo.setFirmado(false);
         partes_jefe saved = parte_jefe_repo.save(nuevo);
 
         // Crear las líneas de porcentaje por obra
@@ -89,7 +88,6 @@ public class parte_jefe_service {
 
         if (revisor.getRol() == user_rol.ADMINISTRACION
                 || revisor.getRol() == user_rol.GESTION) {
-            parte.setFirmado(true);
             parte_jefe_repo.save(parte);
             return;
         }

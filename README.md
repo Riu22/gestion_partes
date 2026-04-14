@@ -46,9 +46,9 @@ Edita tu archivo `src/main/resources/application.properties`:
 
 ```properties
 # Configuración de Base de Datos (Supabase Local)
-spring.datasource.url=jdbc:postgresql://localhost:8081/postgres
-spring.datasource.username=postgres
-spring.datasource.password=postgres
+spring.datasource.url=jdbc:postgresql://localhost:5432/postgres
+spring.datasource.username=postgres.your-tenant-id
+spring.datasource.password=your-super-secret-and-long-postgres-password
 
 # Seguridad JWT (Se requiere una clave de al menos 64 caracteres para HS256)
 jwt.secret=tu_clave_secreta_super_segura_y_muy_larga_para_evitar_errores_de_seguridad
