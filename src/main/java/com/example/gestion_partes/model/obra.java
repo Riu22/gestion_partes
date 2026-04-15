@@ -21,18 +21,20 @@ public class obra {
     @Column(nullable = false)
     String poblacion;
 
-    LocalDate fecha_inicio;
+    @Column(nullable = false)
+
+    String codigo;
     boolean activa;
 
     public obra() {
     }
 
-    public obra (String nombre, String direccion, String municipio, String poblacion){
+    public obra (String nombre, String direccion, String municipio, String poblacion,String codigo){
         this.nombre = nombre;
         this.ubicacion = direccion;
         this.municipio = municipio;
         this.poblacion = poblacion;
-        this.fecha_inicio = LocalDate.now();
+        this.codigo = codigo;
         this.activa = true;
     }
     public Long getId() {
@@ -75,12 +77,12 @@ public class obra {
         this.poblacion = poblacion;
     }
 
-    public LocalDate getFecha_inicio() {
-        return fecha_inicio;
+    public String getCodigo() {
+        return codigo;
     }
 
-    public void setFecha_inicio(LocalDate fecha_inicio) {
-        this.fecha_inicio = fecha_inicio;
+    public void setCodigo(String codigo) {
+        this.codigo = codigo;
     }
 
     public boolean isActiva() {

@@ -67,7 +67,7 @@ CREATE TABLE public.obras (
     ubicacion text NOT NULL,
     municipio text NOT NULL,
     poblacion text NOT NULL,
-    fecha_inicio date DEFAULT CURRENT_DATE,
+    codigo text NOT NULL UNIQUE ,
     activa boolean DEFAULT true,
     creado_el timestamp with time zone DEFAULT now()
 );

@@ -105,7 +105,6 @@ public class partes_controller {
         String obraFiltro = (obra != null && !obra.isBlank()) ? obra : null;
         String operarioFiltro = (operario != null && !operario.isBlank()) ? operario : null;
 
-        // Ahora pasamos 'especialidadParaQuery' que es un String, no un Enum
         return ResponseEntity.ok(partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
     }
     @PutMapping("/update/{parteId}")

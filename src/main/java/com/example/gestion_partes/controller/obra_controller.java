@@ -25,8 +25,14 @@ public class obra_controller {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
-    public ResponseEntity<obra> create_obra(@RequestBody obra_dto new_obra){
-        return ResponseEntity.ok(obra_service.create_obra(new_obra));
+    public ResponseEntity<?> create_obra(@RequestBody obra_dto new_obra){
+        try {
+            obra createdObra = obra_service.create_obra(new_obra);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdObra);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body("Error al crear la obra");
+        }
     }
 
     @DeleteMapping("/delete/{id}")

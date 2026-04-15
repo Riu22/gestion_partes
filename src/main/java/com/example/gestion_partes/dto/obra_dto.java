@@ -4,6 +4,7 @@ public record obra_dto(
         String nombre,
         String direccion,
         String municipio,
-        String poblacion
+        String poblacion,
+        String codigo
 ) {
 }
