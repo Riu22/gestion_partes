@@ -11,10 +11,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
 
@@ -35,6 +35,8 @@ jobs:
         with:
           context: .
           push: true
-          # Construye para PC (amd64) y Raspberry Pi (arm64)
+          # Forzamos las dos arquitecturas
           platforms: linux/amd64,linux/arm64
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/gestion-partes:latest
+          # Evita problemas de metadatos en el manifiesto
+          provenance: false
