@@ -69,7 +69,8 @@ CREATE TABLE public.obras (
     poblacion text NOT NULL,
     codigo text NOT NULL UNIQUE ,
     activa boolean DEFAULT true,
-    creado_el timestamp with time zone DEFAULT now()
+    creado_el timestamp with time zone DEFAULT now(),
+    especialidad TEXT CHECK (especialidad IN ('ELECTRICIDAD', 'FONTANERIA'));
 );
 ALTER TABLE public.obras OWNER TO supabase_admin;
 

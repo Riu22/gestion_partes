@@ -64,6 +64,9 @@ public class user_service {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("rol", new_user.rol().toString());
         metadata.put("full_name", new_user.name());
+        if (new_user.especialidad() != null) {
+            metadata.put("especialidad", new_user.especialidad().name());
+        }
         body.put("user_metadata", metadata);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
@@ -71,11 +74,17 @@ public class user_service {
             rest_template.postForEntity(url, request, String.class);
 
             // Thread.sleep fuera del lambda para evitar InterruptedException
-            if (new_user.codigo() != null || new_user.postventa() != null) {
+            if (new_user.codigo() != null || new_user.postventa() != null || new_user.especialidad() != null) {
                 Thread.sleep(500);
                 user_repo.findByEmail(new_user.email()).ifPresent(p -> {
                     if (new_user.codigo() != null) p.setCodigo(new_user.codigo());
                     if (new_user.postventa() != null) p.setPostventa(new_user.postventa());
+
+                    // Seteamos la especialidad en la entidad antes de guardar
+                    if (new_user.especialidad() != null) {
+                        p.setEspecialidad(new_user.especialidad());
+                    }
+
                     user_repo.save(p);
                 });
             }

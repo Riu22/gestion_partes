@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -37,24 +38,45 @@ public class contabilidad_controller {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
 
-        List<quincena_dto> datos =
-                partes_trabajo_repo.getResumenQuincena(desde, hasta);
+        List<quincena_dto> datos = partes_trabajo_repo.getResumenQuincena(desde, hasta);
 
         StringBuilder csv = new StringBuilder();
-        csv.append("Código,Nombre,Obra,Total Horas\n");
-        for (quincena_dto linea : datos) {
-            csv.append(String.format("%s,%s,%s,%.2f\n",
+
+        // 1. Añadimos el BOM (Byte Order Mark) para UTF-8.
+        // Esto evita que Excel interprete mal caracteres especiales o finales de archivo.
+        csv.append('\ufeff');
+
+        // 2. Cabecera (Usamos punto y coma si el Excel de administración está en español)
+        csv.append("Código;Nombre;Obra;Total Horas\n");
+
+        for (int i = 0; i < datos.size(); i++) {
+            quincena_dto linea = datos.get(i);
+
+            // Usamos punto y coma para separar columnas y la coma para decimales
+            csv.append(String.format("%s;%s;%s;%.2f",
                     linea.getCodigo() != null ? linea.getCodigo() : "",
                     linea.getNombre(),
                     linea.getObra(),
                     linea.getTotal_horas()));
+
+            // 3. Solo añadimos salto de línea si NO es el último registro
+            // Esto elimina la fila fantasma de ceros al final.
+            if (i < datos.size() - 1) {
+                csv.append("\n");
+            }
         }
 
-        byte[] bytes = csv.toString().getBytes();
+        // 4. Convertimos a bytes especificando explícitamente UTF-8
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        // Especificamos el charset en el Content-Type
+        headers.setContentType(MediaType.parseMediaType("text/csv; charset=UTF-8"));
         headers.setContentDispositionFormData("attachment",
                 "quincena_" + desde + "_" + hasta + ".csv");
+
+        // 5. Definir el tamaño exacto ayuda a cerrar el stream correctamente
+        headers.setContentLength(bytes.length);
 
         return ResponseEntity.ok()
                 .headers(headers)

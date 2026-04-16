@@ -24,6 +24,9 @@ public class perfil {
     String codigo;
     @Column(name = "postventa")
     private Boolean postventa = false;
+    @Column(name = "especialidad")
+    @Enumerated(EnumType.STRING)
+    private especialidad especialidad;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
@@ -101,5 +104,13 @@ public class perfil {
 
     public void setPostventa(Boolean postventa) {
         this.postventa = postventa;
+    }
+
+    public especialidad getEspecialidad() {
+        return especialidad;
+    }
+
+    public void setEspecialidad(especialidad especialidad) {
+        this.especialidad = especialidad;
     }
 }

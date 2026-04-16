@@ -40,11 +40,14 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("especialidad") String especialidad
     );
 
-    @Query("SELECT p.perfil.codigo as codigo, p.perfil.name as nombre, " +
-            "p.obra.nombre as obra, SUM(p.horas_normales) as total_horas " +
+    @Query("SELECT p.perfil.codigo as codigo, " +
+            "p.perfil.name as nombre, " +
+            "CASE WHEN p.especialidad = 'FONTANERIA' THEN CONCAT('Font ', p.obra.nombre) " +
+            "     ELSE p.obra.nombre END as obra, " +
+            "SUM(p.horas_normales) as total_horas " +
             "FROM partes_trabajo p " +
             "WHERE p.fecha BETWEEN :desde AND :hasta " +
-            "GROUP BY p.perfil.codigo, p.perfil.name, p.obra.nombre " +
+            "GROUP BY p.perfil.codigo, p.perfil.name, p.obra.nombre, p.especialidad " +
             "ORDER BY p.perfil.name, p.obra.nombre")
     List<quincena_dto> getResumenQuincena(
             @Param("desde") LocalDate desde,
