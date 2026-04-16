@@ -18,6 +18,7 @@ public class partes_jefe_obra {
     @JoinColumn(name = "obra_id")
     private obra obra;
 
+    @Column(name = "porcentaje", columnDefinition = "numeric(5,2)")
     private Double porcentaje;
 
     public partes_jefe_obra() {}

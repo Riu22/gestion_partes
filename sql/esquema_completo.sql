@@ -1,14 +1,3 @@
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
 CREATE SCHEMA public;
 ALTER SCHEMA public OWNER TO pg_database_owner;
 
@@ -70,7 +59,7 @@ CREATE TABLE public.obras (
     codigo text NOT NULL UNIQUE ,
     activa boolean DEFAULT true,
     creado_el timestamp with time zone DEFAULT now(),
-    especialidad TEXT CHECK (especialidad IN ('ELECTRICIDAD', 'FONTANERIA'));
+    especialidad TEXT CHECK (especialidad IN ('ELECTRICIDAD', 'FONTANERIA'))
 );
 ALTER TABLE public.obras OWNER TO supabase_admin;
 
@@ -201,3 +190,6 @@ CREATE TRIGGER on_role_change
     AFTER UPDATE OF rol ON public.perfiles
     FOR EACH ROW
     EXECUTE FUNCTION sync_user_role();
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

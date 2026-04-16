@@ -28,10 +28,10 @@ public class partes_trabajo {
     @Column(columnDefinition = "TEXT",name = "descripcion_tareas")
     private String descripcion;
 
-    @Column(name = "horas_normales")
+    @Column(name = "horas_normales",columnDefinition = "numeric(5,2)")
     private Double horas_normales = 8.0;
 
-    @Column(name = "horas_extra")
+    @Column(name = "horas_extra",columnDefinition = "numeric(5,2)")
     private Double horas_extra = 0.0;
 
     @Enumerated(EnumType.STRING)
