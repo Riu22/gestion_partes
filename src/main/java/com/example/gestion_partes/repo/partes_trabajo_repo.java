@@ -1,5 +1,6 @@
 package com.example.gestion_partes.repo;
 
+import com.example.gestion_partes.dto.contabilidad_detalle_dto;
 import com.example.gestion_partes.dto.quincena_dto;
 import com.example.gestion_partes.model.partes_trabajo;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -50,6 +51,23 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             "GROUP BY p.perfil.codigo, p.perfil.name, p.obra.nombre, p.especialidad " +
             "ORDER BY p.perfil.name, p.obra.nombre")
     List<quincena_dto> getResumenQuincena(
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta
+    );
+    @Query(value = "SELECT p.codigo as codigo, " +
+            "p.nombre as nombre, " +
+            "p.apellidos as apellidos, " +
+            "p.grupo_profesional as grupo_profesional, " +
+            "o.nombre as obra_nombre, " +
+            "pt.fecha as fecha, " +
+            "(pt.horas_normales + pt.horas_extra) as horas_totales " +
+            "FROM partes_trabajo pt " +
+            "JOIN perfiles p ON pt.usuario_id = p.id " +
+            "JOIN obras o ON pt.point_obra_id = o.id " +
+            "WHERE pt.fecha BETWEEN :desde AND :hasta " +
+            "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
+            nativeQuery = true)
+    List<contabilidad_detalle_dto> getDetalleContabilidad(
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta
     );

@@ -14,8 +14,10 @@ public class perfil {
     @Id
     UUID id;
     String email;
-    @Column(name = "nombre_completo")
+    @Column(name = "nombre")
     String name;
+    @Column(name = "apellidos")
+    String apellidos;
     @Enumerated(EnumType.STRING)
     @Column(name = "rol", columnDefinition = "usuario_rol")
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -27,6 +29,9 @@ public class perfil {
     @Column(name = "especialidad")
     @Enumerated(EnumType.STRING)
     private especialidad especialidad;
+
+    @Column(name = "grupo_profesional")
+    String grupo_profesional;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
@@ -74,6 +79,14 @@ public class perfil {
         this.name = name;
     }
 
+    public String getApellidos() {
+        return apellidos;
+    }
+
+    public void setApellidos(String apellidos) {
+        this.apellidos = apellidos;
+    }
+
     public user_rol getRol() {
         return rol;
     }
@@ -112,5 +125,13 @@ public class perfil {
 
     public void setEspecialidad(especialidad especialidad) {
         this.especialidad = especialidad;
+    }
+
+    public String getGrupo_profesional() {
+        return grupo_profesional;
+    }
+
+    public void setGrupo_profesional(String grupo_profesional) {
+        this.grupo_profesional = grupo_profesional;
     }
 }

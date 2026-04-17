@@ -8,15 +8,16 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import javax.crypto.spec.SecretKeySpec;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -73,7 +74,16 @@ public class security_config {
     public JwtDecoder jwtDecoder() {
         SecretKeySpec secretKey = new SecretKeySpec(jwtSecret.getBytes(), "HmacSHA256");
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(secretKey).build();
-        jwtDecoder.setJwtValidator(JwtValidators.createDefault());
+
+        // Creamos una lista de validadores manual, excluyendo el de Issuer
+        List<OAuth2TokenValidator<Jwt>> validators = new ArrayList<>();
+        validators.add(new JwtTimestampValidator()); // Valida que el token no haya expirado
+        // No añadimos JwtIssuerValidator porque Supabase local no lo envía siempre
+
+        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(validators);
+
+        jwtDecoder.setJwtValidator(validator);
+
         return jwtDecoder;
     }
 }

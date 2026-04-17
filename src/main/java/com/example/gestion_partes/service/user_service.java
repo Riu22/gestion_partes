@@ -61,26 +61,36 @@ public class user_service {
         body.put("password", new_user.password());
         body.put("email_confirm", true);
 
+        // Configuración de metadatos (Aquí es donde añadimos nombre y apellidos por separado)
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("rol", new_user.rol().toString());
-        metadata.put("full_name", new_user.name());
+        metadata.put("first_name", new_user.name());        // Cambiado de full_name a first_name
+        metadata.put("last_name", new_user.apellidos());    // Nuevo campo para apellidos
+
+        // Opcional: Si aún quieres mantener un campo consolidado por compatibilidad
+        metadata.put("full_name", new_user.name() + " " + new_user.apellidos());
+
         if (new_user.especialidad() != null) {
             metadata.put("especialidad", new_user.especialidad().name());
         }
         body.put("user_metadata", metadata);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
         try {
             rest_template.postForEntity(url, request, String.class);
 
-            // Thread.sleep fuera del lambda para evitar InterruptedException
+            // Espera para que el webhook de Supabase sincronice con tu DB local si es necesario
             if (new_user.codigo() != null || new_user.postventa() != null || new_user.especialidad() != null) {
                 Thread.sleep(500);
+
                 user_repo.findByEmail(new_user.email()).ifPresent(p -> {
                     if (new_user.codigo() != null) p.setCodigo(new_user.codigo());
                     if (new_user.postventa() != null) p.setPostventa(new_user.postventa());
 
-                    // Seteamos la especialidad en la entidad antes de guardar
+                    p.setName(new_user.name());
+                    p.setApellidos(new_user.apellidos());
+
                     if (new_user.especialidad() != null) {
                         p.setEspecialidad(new_user.especialidad());
                     }
@@ -90,7 +100,7 @@ public class user_service {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Hilo interrumpido al crear usuario: " + e.getMessage());
+            throw new RuntimeException("Hilo interrumpido: " + e.getMessage());
         } catch (Exception e) {
             throw new RuntimeException("Error al crear usuario: " + e.getMessage());
         }
