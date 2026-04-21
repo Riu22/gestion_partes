@@ -12,6 +12,7 @@ public record create_user_dto(
         String codigo,
         boolean activo,
         Boolean postventa,
-        especialidad especialidad
+        especialidad especialidad,
+        String grupo_profesional
 ) {
 }

@@ -56,53 +56,50 @@ public class user_service {
         headers.set("apikey", service_key);
         headers.set("Authorization", "Bearer " + service_key);
 
+        // 1. Preparar metadatos (Enviamos TODO al trigger de la base de datos)
+        Map<String, Object> metadata = new HashMap<>();
+
+        // Fíjate que ahora usamos "nombre" y "apellidos" para que coincida con el Trigger
+        metadata.put("nombre", new_user.name());
+        metadata.put("apellidos", new_user.apellidos());
+        metadata.put("rol", new_user.rol().toString());
+
+        // Forzamos mayúsculas para la especialidad
+        String especialidadStr = (new_user.especialidad() != null)
+                ? new_user.especialidad().name().toUpperCase()
+                : "ELECTRICIDAD";
+        metadata.put("especialidad", especialidadStr);
+
+        // Añadimos el resto de campos si existen
+        if (new_user.codigo() != null) {
+            metadata.put("codigo", new_user.codigo());
+        }
+        if (new_user.postventa() != null) {
+            metadata.put("postventa", new_user.postventa());
+        }
+        if (new_user.grupo_profesional() != null && !new_user.grupo_profesional().isBlank()) {
+            metadata.put("grupo_profesional", new_user.grupo_profesional());
+        }
+
+        // 2. Construir el cuerpo de la petición
         Map<String, Object> body = new HashMap<>();
         body.put("email", new_user.email());
         body.put("password", new_user.password());
         body.put("email_confirm", true);
-
-        // Configuración de metadatos (Aquí es donde añadimos nombre y apellidos por separado)
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("rol", new_user.rol().toString());
-        metadata.put("first_name", new_user.name());        // Cambiado de full_name a first_name
-        metadata.put("last_name", new_user.apellidos());    // Nuevo campo para apellidos
-
-        // Opcional: Si aún quieres mantener un campo consolidado por compatibilidad
-        metadata.put("full_name", new_user.name() + " " + new_user.apellidos());
-
-        if (new_user.especialidad() != null) {
-            metadata.put("especialidad", new_user.especialidad().name());
-        }
-        body.put("user_metadata", metadata);
+        body.put("user_metadata", metadata); // Todo va aquí dentro
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
         try {
+            // 3. Enviar a Supabase Auth.
+            // Esto crea el usuario y dispara el Trigger automáticamente.
             rest_template.postForEntity(url, request, String.class);
 
-            // Espera para que el webhook de Supabase sincronice con tu DB local si es necesario
-            if (new_user.codigo() != null || new_user.postventa() != null || new_user.especialidad() != null) {
-                Thread.sleep(500);
+            // ¡Listo! Ya no necesitamos Thread.sleep() ni user_repo.save()
+            // La creación es atómica e inmediata.
 
-                user_repo.findByEmail(new_user.email()).ifPresent(p -> {
-                    if (new_user.codigo() != null) p.setCodigo(new_user.codigo());
-                    if (new_user.postventa() != null) p.setPostventa(new_user.postventa());
-
-                    p.setName(new_user.name());
-                    p.setApellidos(new_user.apellidos());
-
-                    if (new_user.especialidad() != null) {
-                        p.setEspecialidad(new_user.especialidad());
-                    }
-
-                    user_repo.save(p);
-                });
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Hilo interrumpido: " + e.getMessage());
         } catch (Exception e) {
-            throw new RuntimeException("Error al crear usuario: " + e.getMessage());
+            throw new RuntimeException("Error al crear usuario en Supabase: " + e.getMessage());
         }
     }
 
