@@ -15,8 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
 @Service
 public class partes_service {
     @Autowired partes_trabajo_repo partes_trabajo_repo;
@@ -78,13 +81,23 @@ public class partes_service {
                 || usuario.getRol() == user_rol.GESTION) {
             return partes_trabajo_repo.findAll();
         }
+
+        // Partes propios (siempre incluidos)
+        List<partes_trabajo> resultado = new ArrayList<>(
+                partes_trabajo_repo.findByPerfilId(usuario.getId())
+        );
+
         if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
-            return partes_trabajo_repo.findPartesParaJefeObra(usuario.getId());
+            resultado.addAll(partes_trabajo_repo.findPartesParaJefeObra(usuario.getId()));
+        } else if (usuario.getRol() == user_rol.ENCARGADO) {
+            resultado.addAll(partes_trabajo_repo.findPartesParaEncargado(usuario.getId()));
         }
-        if (usuario.getRol() == user_rol.ENCARGADO) {
-            return partes_trabajo_repo.findPartesParaEncargado(usuario.getId());
-        }
-        return partes_trabajo_repo.findByPerfilId(usuario.getId());
+
+        return resultado.stream()
+                .collect(Collectors.toMap(partes_trabajo::getId, p -> p, (a, b) -> a))
+                .values()
+                .stream()
+                .toList();
     }
 
 
