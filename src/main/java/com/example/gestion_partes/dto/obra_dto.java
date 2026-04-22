@@ -5,6 +5,7 @@ public record obra_dto(
         String direccion,
         String municipio,
         String poblacion,
-        String codigo
+        String codigo,
+        Boolean activa
 ) {
 }

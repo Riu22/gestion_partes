@@ -29,13 +29,13 @@ public class obra {
     public obra() {
     }
 
-    public obra (String nombre, String direccion, String municipio, String poblacion,String codigo){
+    public obra (String nombre, String direccion, String municipio, String poblacion,String codigo,Boolean activa){
         this.nombre = nombre;
         this.ubicacion = direccion;
         this.municipio = municipio;
         this.poblacion = poblacion;
         this.codigo = codigo;
-        this.activa = true;
+        this.activa = activa;
     }
     public Long getId() {
         return id;

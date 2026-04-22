@@ -24,7 +24,8 @@ public class obra_service {
                 new_obra.direccion(),
                 new_obra.municipio(),
                 new_obra.poblacion(),
-                new_obra.codigo()
+                new_obra.codigo(),
+                new_obra.activa() != null ? new_obra.activa() : true
         );
         return obra_repo.save(obraEntity);
     }
@@ -55,6 +56,9 @@ public class obra_service {
         }
         if (obraDatos.codigo() != null) {
             obra_existente.setCodigo(obraDatos.codigo());
+        }
+        if(obraDatos.activa() != null){
+            obra_existente.setActiva(obraDatos.activa());
         }
 
         return obra_repo.save(obra_existente);

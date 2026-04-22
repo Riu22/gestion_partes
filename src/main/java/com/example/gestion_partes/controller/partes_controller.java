@@ -28,10 +28,14 @@ public class partes_controller {
 
     @PostMapping("/new_parte")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','OPERARIO','ENCARGADO')")
-    public ResponseEntity<partes_trabajo> create_parte(
+    public ResponseEntity<?> create_parte(
             @RequestBody partes_dto dto,
             Authentication auth) {
-        return ResponseEntity.ok(partes_service.create_parte(dto, auth.getName()));
+        try {
+            return ResponseEntity.ok(partes_service.create_parte(dto, auth.getName()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @GetMapping("/get_partes")

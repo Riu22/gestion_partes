@@ -58,7 +58,10 @@ public class partes_service {
         perfil perfil = perfil_repo.findById(dto.id_perfil())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Perfil no encontrado"));
-
+        if (!obra.isActiva()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No se pueden crear partes en una obra inactiva");
+        }
         partes_trabajo nuevo = new partes_trabajo();
         nuevo.setObra(obra);
         nuevo.setPerfil(perfil);
