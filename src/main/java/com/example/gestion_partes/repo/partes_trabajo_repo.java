@@ -32,7 +32,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             "LEFT JOIN public.obras o ON p.point_obra_id = o.id " +
             "LEFT JOIN public.perfiles perf ON p.usuario_id = perf.id " +
             "WHERE (:obra IS NULL OR LOWER(CAST(o.nombre AS VARCHAR)) LIKE LOWER(CONCAT('%', CAST(:obra AS VARCHAR), '%'))) " +
-            "AND (:operario IS NULL OR LOWER(CAST(perf.nombre_completo AS VARCHAR)) LIKE LOWER(CONCAT('%', CAST(:operario AS VARCHAR), '%'))) " +
+            "AND (:operario IS NULL OR LOWER(CONCAT(perf.nombre, ' ', perf.apellidos)) LIKE LOWER(CONCAT('%', CAST(:operario AS VARCHAR), '%'))) " +
             "AND (:especialidad IS NULL OR CAST(p.especialidad AS VARCHAR) = CAST(:especialidad AS VARCHAR))",
             nativeQuery = true)
     List<partes_trabajo> buscarPartes(
