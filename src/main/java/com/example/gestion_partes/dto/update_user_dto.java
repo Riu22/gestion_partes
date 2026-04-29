@@ -4,9 +4,11 @@ import com.example.gestion_partes.model.user_rol;
 
 public record update_user_dto(
         String name,
+        String apellidos,
         user_rol rol,
         Boolean activo,
         String codigo,
-        Boolean postventa
+        Boolean postventa,
+        String grupo_profesional
 )
 {}

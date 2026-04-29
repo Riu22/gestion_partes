@@ -3,6 +3,7 @@ package com.example.gestion_partes.service;
 import com.example.gestion_partes.dto.create_user_dto;
 import com.example.gestion_partes.dto.update_user_dto;
 import com.example.gestion_partes.repo.perfil_repo;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -34,18 +35,20 @@ public class user_service {
     @Autowired
     perfil_repo user_repo;
 
+    @Transactional
     public perfil update_profile(UUID id, update_user_dto datosNuevos) {
         perfil perfilExistente = user_repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
         if (datosNuevos.name() != null) perfilExistente.setName(datosNuevos.name());
+        if (datosNuevos.apellidos() != null) perfilExistente.setApellidos(datosNuevos.apellidos());
         if (datosNuevos.rol() != null) perfilExistente.setRol(datosNuevos.rol());
         if (datosNuevos.activo() != null) perfilExistente.setActivo(datosNuevos.activo());
         if (datosNuevos.codigo() != null) perfilExistente.setCodigo(datosNuevos.codigo());
-        if (datosNuevos.postventa() != null) {
-            perfilExistente.setPostventa(datosNuevos.postventa());
-        }
+        if (datosNuevos.postventa() != null) perfilExistente.setPostventa(datosNuevos.postventa());
+        if (datosNuevos.grupo_profesional() != null) perfilExistente.setGrupo_profesional(datosNuevos.grupo_profesional());
+
         return user_repo.save(perfilExistente);
     }
 
