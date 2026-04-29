@@ -8,6 +8,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface perfil_repo extends JpaRepository<perfil, UUID> {
-    Optional<perfil> findByEmail(String email);
+    List<perfil> findAllByOrderByActivoDescApellidosAscNameAsc();
     List<perfil> findByJefeDirectoId(UUID jefeId);
 }

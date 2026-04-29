@@ -15,7 +15,7 @@ public class obra_service {
     @Autowired
     obra_repo obra_repo;
     public List<obra> getAllObras() {
-        return obra_repo.findAll();
+        return obra_repo.findAllByOrderByNombreAsc();
     }
 
     public obra create_obra(obra_dto new_obra){

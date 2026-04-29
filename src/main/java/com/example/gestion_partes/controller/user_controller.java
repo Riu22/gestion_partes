@@ -65,6 +65,6 @@ public class user_controller {
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<List<perfil>> get_all_users() {
-        return ResponseEntity.ok(perfil_repo.findAll());
+        return ResponseEntity.ok(perfil_repo.findAllByOrderByActivoDescApellidosAscNameAsc());
     }
 }

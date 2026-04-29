@@ -69,7 +69,7 @@ public class partes_service {
         nuevo.setDescripcion(dto.descripcion());
         nuevo.setHoras_normales(dto.horas_normales() != null ? dto.horas_normales() : 8.0);
         nuevo.setHoras_normales(dto.horas_normales() != null ? dto.horas_normales() : 8.0);
-        nuevo.setHoras_extra(0.0); // siempre 0, se elimina del formulario
+        nuevo.setHoras_extra(0.0);
         nuevo.setEspecialidad(dto.especialidad());
 
         return partes_trabajo_repo.save(nuevo);
@@ -127,11 +127,11 @@ public class partes_service {
                     "No puedes editar partes de otros usuarios");
         }
 
-        // Validar límite de 2 semanas
-        LocalDate limiteMinimo = LocalDate.now().minusWeeks(2);
-        if (parte.getFecha().isBefore(limiteMinimo)) {
+        // Cambiar de 2 semanas a mismo día
+        LocalDate hoy = LocalDate.now();
+        if (!parte.getFecha().isEqual(hoy)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "No puedes editar partes con más de 2 semanas de antigüedad");
+                    "Solo puedes editar partes del día de hoy");
         }
 
         if (dto.id_obra() != null) {
