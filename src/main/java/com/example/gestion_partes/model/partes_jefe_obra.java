@@ -1,5 +1,6 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 
 @Entity
@@ -12,11 +13,12 @@ public class partes_jefe_obra {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parte_jefe_id", nullable = false)
+    @JsonBackReference
     private partes_jefe parteJefe;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "obra_id")
-    private obra obra;
+    private obra obra;;
 
     @Column(name = "porcentaje", columnDefinition = "numeric(5,2)")
     private Double porcentaje;

@@ -101,7 +101,7 @@ public class asignacion_service {
      * Mejora: No lanzamos error si no hay, devolvemos lista vacía para que el Front no explote.
      */
     public List<perfil> get_mis_subordinados(UUID id) {
-        return perfil_repo.findByJefeDirectoId(id);
+        return perfil_repo.findByJefeDirecto_Id(id);
     }
 
     // --- CONSULTAS DE OBRAS ---

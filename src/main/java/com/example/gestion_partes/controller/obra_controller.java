@@ -20,7 +20,12 @@ public class obra_controller {
 
     @GetMapping()
     public ResponseEntity<List<obra>> get_all_obra(){
-        return ResponseEntity.ok(obra_service.getAllObras());
+        return ResponseEntity.ok(obra_service.get_all_obras());
+    }
+
+    @GetMapping("/activas")
+    ResponseEntity<List<obra>> get_obra_activas(){
+        return ResponseEntity.ok(obra_service.get_obras_activas());
     }
 
     @PostMapping

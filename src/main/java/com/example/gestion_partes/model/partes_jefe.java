@@ -1,5 +1,6 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -23,8 +24,8 @@ public class partes_jefe {
     @Column(name = "descripcion_tareas", columnDefinition = "TEXT")
     private String descripcion;
 
-
     @OneToMany(mappedBy = "parteJefe", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference
     private List<partes_jefe_obra> obras = new ArrayList<>();
 
     public partes_jefe() {}

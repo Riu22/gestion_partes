@@ -1,5 +1,6 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -35,16 +36,20 @@ public class perfil {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
-    @JsonIgnoreProperties({"jefeDirecto", "handler", "hibernateLazyInitializer"}) // <--- ESTO ES CLAVE
+    @JsonIgnore
     private perfil jefeDirecto;
 
-    public perfil(){}
+    public perfil() {}
 
-    public perfil(String email,String name,user_rol rol,boolean activo){
+    public perfil(String email, String name, user_rol rol, boolean activo) {
         this.email = email;
         this.name = name;
         this.rol = rol;
         this.activo = activo;
+    }
+
+    public UUID getJefeDirectoId() {
+        return jefeDirecto != null ? jefeDirecto.getId() : null;
     }
 
     public perfil getJefeDirecto() {

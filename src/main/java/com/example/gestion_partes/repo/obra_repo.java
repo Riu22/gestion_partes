@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface obra_repo extends JpaRepository<obra,Long> {
     List<obra> findAllByOrderByNombreAsc();
+    List<obra> findByActivaTrueOrderByNombreAsc();
 }

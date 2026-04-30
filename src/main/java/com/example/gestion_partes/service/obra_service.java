@@ -14,8 +14,11 @@ import java.util.List;
 public class obra_service {
     @Autowired
     obra_repo obra_repo;
-    public List<obra> getAllObras() {
+    public List<obra> get_all_obras() {
         return obra_repo.findAllByOrderByNombreAsc();
+    }
+    public List<obra> get_obras_activas() {
+        return obra_repo.findByActivaTrueOrderByNombreAsc();
     }
 
     public obra create_obra(obra_dto new_obra){

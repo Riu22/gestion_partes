@@ -4,10 +4,9 @@ import com.example.gestion_partes.model.perfil;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 public interface perfil_repo extends JpaRepository<perfil, UUID> {
     List<perfil> findAllByOrderByActivoDescApellidosAscNameAsc();
-    List<perfil> findByJefeDirectoId(UUID jefeId);
+    List<perfil> findByJefeDirecto_Id(UUID jefeId);
 }
