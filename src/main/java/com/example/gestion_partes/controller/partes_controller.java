@@ -3,17 +3,19 @@ package com.example.gestion_partes.controller;
 import com.example.gestion_partes.dto.partes_jefe_dto;
 import com.example.gestion_partes.dto.partes_dto;
 import com.example.gestion_partes.model.partes_jefe;
-import com.example.gestion_partes.model.partes_jefe;
 import com.example.gestion_partes.model.partes_trabajo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
+import com.example.gestion_partes.service.configuration_service;
 import com.example.gestion_partes.service.parte_jefe_service;
 import com.example.gestion_partes.service.partes_service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -23,6 +25,7 @@ public class partes_controller {
     @Autowired partes_service partes_service;
     @Autowired parte_jefe_service parte_jefe_service;
     @Autowired partes_trabajo_repo partes_trabajo_repo;
+    @Autowired configuration_service configuration_service;
 
     // ─── PARTES OPERARIO / ENCARGADO ───────────────────────────
 
@@ -44,12 +47,36 @@ public class partes_controller {
         return ResponseEntity.ok(partes_service.get_partes_jerarquico(auth.getName()));
     }
 
-
     @DeleteMapping("/delete/{parteId}")
     @PreAuthorize("hasRole('ADMINISTRACION')")
     public ResponseEntity<?> delete_parte(@PathVariable Long parteId) {
         partes_service.delete_parte(parteId);
         return ResponseEntity.ok().build();
+    }
+
+    // ─── FECHAS CON PARTE (para bloquear en DatePicker) ───────
+
+    /**
+     * Devuelve la lista de fechas en las que el perfil con [id]
+     * ya tiene un parte registrado. Solo accesible por admin/gestión.
+     */
+    @GetMapping("/fechas-con-parte/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<List<LocalDate>> fechasConParte(@PathVariable String id) {
+        return ResponseEntity.ok(partes_service.getFechasConParte(id));
+    }
+
+    /**
+     * Devuelve las fechas con parte del propio usuario autenticado.
+     * Lo usan operarios/encargados para que el DatePicker bloquee
+     * los días que ya tienen cubiertos.
+     */
+    @GetMapping("/mis-fechas-con-parte")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<LocalDate>> misFechasConParte(Authentication auth) {
+        System.out.println(">>> auth.getName(): " + auth.getName());
+        System.out.println(">>> auth.class: " + auth.getClass().getName());
+        return ResponseEntity.ok(partes_service.getFechasConPartePorUsername(auth.getName()));
     }
 
     // ─── PARTES JEFE DE OBRA ───────────────────────────────────
@@ -93,15 +120,12 @@ public class partes_controller {
             @RequestParam(required = false) String operario,
             @RequestParam(required = false) String especialidad) {
 
-        // Validamos si la especialidad existe en nuestro Enum solo por seguridad
         String especialidadParaQuery = null;
         if (especialidad != null && !especialidad.isBlank()) {
             try {
-                // Esto comprueba que el texto enviado sea un valor válido del Enum
                 especialidadParaQuery = com.example.gestion_partes.model.especialidad
                         .valueOf(especialidad.toUpperCase().trim()).name();
             } catch (IllegalArgumentException e) {
-                // Si mandan algo que no existe, devolvemos lista vacía
                 return ResponseEntity.ok(List.of());
             }
         }
@@ -109,7 +133,18 @@ public class partes_controller {
         String obraFiltro = (obra != null && !obra.isBlank()) ? obra : null;
         String operarioFiltro = (operario != null && !operario.isBlank()) ? operario : null;
 
-        return ResponseEntity.ok(partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
+        return ResponseEntity.ok(
+                partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
+    }
+    @GetMapping("/puede-fecha-libre")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Boolean> puedeFechaLibre(
+            Authentication auth,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+
+        // Now we pass both the User ID and the specific Date to the service
+        return ResponseEntity.ok(
+                configuration_service.puedeUsarFechaLibre(auth.getName(), fecha));
     }
     @PutMapping("/update/{parteId}")
     @PreAuthorize("isAuthenticated()")

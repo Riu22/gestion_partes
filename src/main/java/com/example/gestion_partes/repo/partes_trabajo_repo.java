@@ -54,6 +54,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta
     );
+
     @Query(value = "SELECT p.codigo as codigo, " +
             "p.nombre as nombre, " +
             "p.apellidos as apellidos, " +

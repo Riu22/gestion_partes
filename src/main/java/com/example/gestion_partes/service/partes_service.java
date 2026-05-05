@@ -8,7 +8,6 @@ import com.example.gestion_partes.model.user_rol;
 import com.example.gestion_partes.repo.obra_repo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
 import com.example.gestion_partes.repo.perfil_repo;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class partes_service {
+
     @Autowired partes_trabajo_repo partes_trabajo_repo;
     @Autowired perfil_repo perfil_repo;
     @Autowired obra_repo obra_repo;
@@ -31,16 +31,19 @@ public class partes_service {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Perfil no encontrado"));
 
-        // Validar límite de 2 semanas
-        LocalDate limiteMinimo = LocalDate.now().minusWeeks(2);
-        if (dto.fecha().isBefore(limiteMinimo)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "No puedes crear partes con más de 2 semanas de antigüedad");
+        boolean esGestor = solicitante.getRol() == user_rol.ADMINISTRACION
+                || solicitante.getRol() == user_rol.GESTION;
+
+        // Gestores pueden crear en cualquier fecha; el resto tiene límite de 2 semanas
+        if (!esGestor) {
+            LocalDate limiteMinimo = LocalDate.now().minusWeeks(2);
+            if (dto.fecha().isBefore(limiteMinimo)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No puedes crear partes con más de 2 semanas de antigüedad");
+            }
         }
 
         // Solo GESTION/ADMIN pueden crear partes para otros
-        boolean esGestor = solicitante.getRol() == user_rol.ADMINISTRACION
-                || solicitante.getRol() == user_rol.GESTION;
         if (!esGestor && !solicitante.getId().equals(dto.id_perfil())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Solo puedes crear partes para ti mismo");
@@ -52,25 +55,34 @@ public class partes_service {
                     "Los jefes de obra deben usar el endpoint de partes por porcentaje");
         }
 
+        UUID idPerfil = dto.id_perfil();
+
         obra obra = obra_repo.findById(dto.id_obra())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Obra no encontrada"));
-        perfil perfil = perfil_repo.findById(dto.id_perfil())
+        perfil perfil = perfil_repo.findById(idPerfil)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+
         if (!obra.isActiva()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "No se pueden crear partes en una obra inactiva");
         }
+
+        // Sí se permite más de un parte por día — un operario puede trabajar
+        // en varias obras el mismo día
         partes_trabajo nuevo = new partes_trabajo();
         nuevo.setObra(obra);
         nuevo.setPerfil(perfil);
         nuevo.setFecha(dto.fecha());
         nuevo.setDescripcion(dto.descripcion());
         nuevo.setHoras_normales(dto.horas_normales() != null ? dto.horas_normales() : 8.0);
-        nuevo.setHoras_normales(dto.horas_normales() != null ? dto.horas_normales() : 8.0);
         nuevo.setHoras_extra(0.0);
         nuevo.setEspecialidad(dto.especialidad());
+
+        // Marcar si fue creado por un gestor para otro usuario
+        boolean creadoParaOtro = !solicitante.getId().equals(idPerfil);
+        nuevo.setCreado_por_gestor(esGestor && creadoParaOtro);
 
         return partes_trabajo_repo.save(nuevo);
     }
@@ -85,10 +97,8 @@ public class partes_service {
             return partes_trabajo_repo.findAll();
         }
 
-        // Partes propios (siempre incluidos)
         List<partes_trabajo> resultado = new ArrayList<>(
-                partes_trabajo_repo.findByPerfilId(usuario.getId())
-        );
+                partes_trabajo_repo.findByPerfilId(usuario.getId()));
 
         if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
             resultado.addAll(partes_trabajo_repo.findPartesParaJefeObra(usuario.getId()));
@@ -103,13 +113,13 @@ public class partes_service {
                 .toList();
     }
 
-
     public void delete_parte(Long parteId) {
         if (!partes_trabajo_repo.existsById(parteId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Parte no encontrado");
         }
         partes_trabajo_repo.deleteById(parteId);
     }
+
     public partes_trabajo update_parte(Long parteId, partes_dto dto, String sub) {
         partes_trabajo parte = partes_trabajo_repo.findById(parteId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -119,19 +129,21 @@ public class partes_service {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Perfil no encontrado"));
 
-        // Solo el propio usuario o gestión/admin pueden editar
         boolean esGestor = solicitante.getRol() == user_rol.ADMINISTRACION
                 || solicitante.getRol() == user_rol.GESTION;
+
         if (!esGestor && !parte.getPerfil().getId().equals(solicitante.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "No puedes editar partes de otros usuarios");
         }
 
-        // Cambiar de 2 semanas a mismo día
-        LocalDate hoy = LocalDate.now();
-        if (!parte.getFecha().isEqual(hoy)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Solo puedes editar partes del día de hoy");
+        // Gestores pueden editar cualquier fecha; el resto solo el día de hoy
+        if (!esGestor) {
+            LocalDate hoy = LocalDate.now();
+            if (!parte.getFecha().isEqual(hoy)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Solo puedes editar partes del día de hoy");
+            }
         }
 
         if (dto.id_obra() != null) {
@@ -146,5 +158,25 @@ public class partes_service {
         if (dto.especialidad() != null) parte.setEspecialidad(dto.especialidad());
 
         return partes_trabajo_repo.save(parte);
+    }
+
+    // ─── Fechas con parte ──────────────────────────────────────────────────────
+
+    /**
+     * Devuelve las fechas en las que el perfil ya tiene AL MENOS un parte.
+     * Se usa en el DatePicker para informar, no para bloquear.
+     */
+    public List<LocalDate> getFechasConParte(String id) {
+        UUID uuid = UUID.fromString(id);
+        return partes_trabajo_repo.findByPerfilId(uuid)
+                .stream()
+                .map(partes_trabajo::getFecha)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    public List<LocalDate> getFechasConPartePorUsername(String sub) {
+        return getFechasConParte(sub);
     }
 }
