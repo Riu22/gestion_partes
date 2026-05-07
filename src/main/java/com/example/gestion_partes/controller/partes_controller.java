@@ -13,6 +13,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -48,9 +50,11 @@ public class partes_controller {
     }
 
     @DeleteMapping("/delete/{parteId}")
-    @PreAuthorize("hasRole('ADMINISTRACION')")
-    public ResponseEntity<?> delete_parte(@PathVariable Long parteId) {
-        partes_service.delete_parte(parteId);
+    public ResponseEntity<?> delete_parte(
+            @PathVariable Long parteId,
+            @AuthenticationPrincipal Jwt jwt) {
+        String sub = jwt.getSubject();
+        partes_service.delete_parte(parteId, sub);
         return ResponseEntity.ok().build();
     }
 

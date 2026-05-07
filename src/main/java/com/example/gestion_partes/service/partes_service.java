@@ -113,10 +113,31 @@ public class partes_service {
                 .toList();
     }
 
-    public void delete_parte(Long parteId) {
-        if (!partes_trabajo_repo.existsById(parteId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Parte no encontrado");
+    public void delete_parte(Long parteId, String sub) {
+        partes_trabajo parte = partes_trabajo_repo.findById(parteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Parte no encontrado"));
+
+        perfil solicitante = perfil_repo.findById(UUID.fromString(sub))
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+
+        boolean esGestor = solicitante.getRol() == user_rol.ADMINISTRACION
+                || solicitante.getRol() == user_rol.GESTION;
+
+        if (!esGestor) {
+            // Solo puede eliminar sus propios partes
+            if (!parte.getPerfil().getId().equals(solicitante.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "No puedes eliminar partes de otros usuarios");
+            }
+            // Solo puede eliminar partes del día de hoy
+            if (!parte.getFecha().isEqual(LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Solo puedes eliminar partes del día de hoy");
+            }
         }
+
         partes_trabajo_repo.deleteById(parteId);
     }
 
