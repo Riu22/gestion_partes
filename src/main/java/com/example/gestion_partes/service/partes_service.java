@@ -25,6 +25,7 @@ public class partes_service {
     @Autowired partes_trabajo_repo partes_trabajo_repo;
     @Autowired perfil_repo perfil_repo;
     @Autowired obra_repo obra_repo;
+    @Autowired configuration_service configuration_service;
 
     public partes_trabajo create_parte(partes_dto dto, String sub) {
         perfil solicitante = perfil_repo.findById(UUID.fromString(sub))
@@ -126,15 +127,17 @@ public class partes_service {
                 || solicitante.getRol() == user_rol.GESTION;
 
         if (!esGestor) {
-            // Solo puede eliminar sus propios partes
             if (!parte.getPerfil().getId().equals(solicitante.getId())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "No puedes eliminar partes de otros usuarios");
             }
-            // Solo puede eliminar partes del día de hoy
-            if (!parte.getFecha().isEqual(LocalDate.now())) {
+            boolean esHoy = parte.getFecha().isEqual(LocalDate.now());
+            boolean esFechaLibre = configuration_service.fechaPermitida(
+                    sub, parte.getFecha());
+
+            if (!esHoy && !esFechaLibre) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Solo puedes eliminar partes del día de hoy");
+                        "Solo puedes eliminar partes de días habilitados");
             }
         }
 
@@ -158,12 +161,14 @@ public class partes_service {
                     "No puedes editar partes de otros usuarios");
         }
 
-        // Gestores pueden editar cualquier fecha; el resto solo el día de hoy
         if (!esGestor) {
-            LocalDate hoy = LocalDate.now();
-            if (!parte.getFecha().isEqual(hoy)) {
+            boolean esHoy = parte.getFecha().isEqual(LocalDate.now());
+            boolean esFechaLibre = configuration_service.fechaPermitida(
+                    sub, parte.getFecha());
+
+            if (!esHoy && !esFechaLibre) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Solo puedes editar partes del día de hoy");
+                        "Solo puedes editar partes de días habilitados");
             }
         }
 
