@@ -44,19 +44,16 @@ public class pdf_service {
             LocalDate    desde,
             LocalDate    hasta) throws Exception {
 
-        // 1. Obtener y filtrar partes
         List<partes_trabajo> todos = partes_trabajo_repo.findAll().stream()
                 .filter(p -> !p.getFecha().isBefore(desde) && !p.getFecha().isAfter(hasta))
                 .filter(p -> obraIds   == null || obraIds.isEmpty()   || obraIds.contains(p.getObra().getId()))
                 .filter(p -> perfilIds == null || perfilIds.isEmpty() || perfilIds.contains(p.getPerfil().getId().toString()))
                 .collect(Collectors.toList());
 
-        // 2. Agrupar por obra física (id de obra, no por especialidad)
         Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
         todos.forEach(p ->
                 porObra.computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>()).add(p));
 
-        // 3. Construir el ZIP
         ByteArrayOutputStream zipBaos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(zipBaos)) {
             for (Map.Entry<Long, List<partes_trabajo>> entry : porObra.entrySet()) {
@@ -65,7 +62,6 @@ public class pdf_service {
 
                 byte[] pdfBytes = generarPdfUnaObra(nombreObra, partesObra, desde, hasta);
 
-                // Nombre del fichero dentro del ZIP: sanitizamos caracteres especiales
                 String nombreFichero = sanitizarNombre(nombreObra) + ".pdf";
                 zos.putNextEntry(new ZipEntry(nombreFichero));
                 zos.write(pdfBytes);
@@ -77,7 +73,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PDF único (todas las obras en un solo archivo) — se mantiene para compatibilidad
+    // PDF único (todas las obras en un solo archivo)
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
@@ -91,7 +87,6 @@ public class pdf_service {
                 .filter(p -> perfilIds == null || perfilIds.isEmpty() || perfilIds.contains(p.getPerfil().getId().toString()))
                 .collect(Collectors.toList());
 
-        // Agrupar: obra física → especialidad → operario → partes
         Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
@@ -115,8 +110,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Genera el PDF de una sola obra (usado por el ZIP)
-    // Dentro de la obra separa por especialidad: primero ELECTRICIDAD, luego FONTANERIA
+    // PDF de una sola obra (usado por el ZIP)
     // ─────────────────────────────────────────────────────────────────────────
     private byte[] generarPdfUnaObra(
             String nombreObra,
@@ -136,21 +130,58 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Sección de una obra: agrupa por especialidad → operario
+    // Enrutador: postventa → separa por especialidad; obra nueva → directo por operario
     // ─────────────────────────────────────────────────────────────────────────
     private void agregarSeccionObra(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
+        boolean esPostventa = Boolean.TRUE.equals(partes.get(0).getPerfil().getPostventa());
 
-        // Separar por especialidad: ELECTRICIDAD primero, FONTANERIA después, sin especialidad al final
+        if (esPostventa) {
+            agregarSeccionObraConEspecialidad(doc, nombreObra, partes);
+        } else {
+            agregarSeccionObraSinEspecialidad(doc, nombreObra, partes);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Obra nueva: cabecera solo con nombre de obra, agrupa directamente por operario
+    // ─────────────────────────────────────────────────────────────────────────
+    private void agregarSeccionObraSinEspecialidad(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
+
+        Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
+        partes.stream()
+                .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
+                .forEach(p -> porOperario
+                        .computeIfAbsent(p.getPerfil().getId(), k -> new ArrayList<>())
+                        .add(p));
+
+        porOperario.values().forEach(lista ->
+                lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
+
+        PdfPTable tabla = crearTablaBase();
+        agregarCeldaObra(tabla, nombreObra, "SIN_ESPECIALIDAD", 4);
+
+        for (List<partes_trabajo> partesOp : porOperario.values()) {
+            agregarFilasOperario(tabla, partesOp);
+        }
+
+        doc.add(tabla);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Postventa: separa por especialidad (ELECTRICIDAD → FONTANERIA → resto),
+    // dentro de cada bloque agrupa por operario
+    // ─────────────────────────────────────────────────────────────────────────
+    private void agregarSeccionObraConEspecialidad(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
+
         Map<String, List<partes_trabajo>> porEspecialidad = new LinkedHashMap<>();
         for (partes_trabajo p : partes) {
             String esp = p.getEspecialidad() != null ? p.getEspecialidad().name() : "SIN_ESPECIALIDAD";
             porEspecialidad.computeIfAbsent(esp, k -> new ArrayList<>()).add(p);
         }
 
-        // Orden: ELECTRICIDAD → FONTANERIA → resto
         List<String> ordenEsp = new ArrayList<>();
-        if (porEspecialidad.containsKey("ELECTRICIDAD"))    ordenEsp.add("ELECTRICIDAD");
-        if (porEspecialidad.containsKey("FONTANERIA"))      ordenEsp.add("FONTANERIA");
+        if (porEspecialidad.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
+        if (porEspecialidad.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
         porEspecialidad.keySet().stream()
                 .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
                 .forEach(ordenEsp::add);
@@ -158,13 +189,11 @@ public class pdf_service {
         for (String esp : ordenEsp) {
             List<partes_trabajo> partesEsp = porEspecialidad.get(esp);
 
-            // Título de la sección: "OBRA · ELECTRICIDAD" o solo "OBRA"
             String tituloSeccion = nombreObra;
             if (!esp.equals("SIN_ESPECIALIDAD")) {
                 tituloSeccion += "  ·  " + (esp.equals("FONTANERIA") ? "Fontanería" : "Electricidad");
             }
 
-            // Agrupar por operario dentro de esta especialidad
             Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
             partesEsp.stream()
                     .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -172,47 +201,54 @@ public class pdf_service {
                             .computeIfAbsent(p.getPerfil().getId(), k -> new ArrayList<>())
                             .add(p));
 
-            // Ordenar cada operario por fecha desc
             porOperario.values().forEach(lista ->
                     lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
 
-            // Construir tabla
-            PdfPTable tabla = new PdfPTable(4);
-            tabla.setWidthPercentage(100);
-            tabla.setWidths(new float[]{2f, 1f, 5f, 0.1f});
-            tabla.setSpacingBefore(12);
-            tabla.setSpacingAfter(6);
-            tabla.setKeepTogether(false);
-
-            // Cabecera de obra/especialidad
+            PdfPTable tabla = crearTablaBase();
             agregarCeldaObra(tabla, tituloSeccion, esp, 4);
 
             for (List<partes_trabajo> partesOp : porOperario.values()) {
-                partes_trabajo primero = partesOp.get(0);
-                String nombreOp = primero.getPerfil().getName()
-                        + " " + primero.getPerfil().getApellidos();
-
-                agregarCeldaOperario(tabla, nombreOp, 4);
-
-                double totalHoras = 0;
-                boolean par = false;
-                for (partes_trabajo p : partesOp) {
-                    Color bgFila = par ? COLOR_FILA_PAR : Color.WHITE;
-                    par = !par;
-                    agregarCeldaDato(tabla, FMT.format(p.getFecha()), bgFila, Element.ALIGN_CENTER);
-                    String hStr = formatHoras(p.getHoras_normales());
-                    agregarCeldaDato(tabla, hStr, bgFila, Element.ALIGN_CENTER);
-                    String desc = (p.getDescripcion() != null && !p.getDescripcion().isBlank())
-                            ? p.getDescripcion() : "Sin descripción";
-                    agregarCeldaDato(tabla, desc, bgFila, Element.ALIGN_LEFT);
-                    agregarCeldaDato(tabla, "", bgFila, Element.ALIGN_LEFT);
-                    totalHoras += p.getHoras_normales();
-                }
-                agregarCeldaTotal(tabla, totalHoras, 4);
+                agregarFilasOperario(tabla, partesOp);
             }
 
             doc.add(tabla);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers de tabla
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private PdfPTable crearTablaBase() throws Exception {
+        PdfPTable tabla = new PdfPTable(4);
+        tabla.setWidthPercentage(100);
+        tabla.setWidths(new float[]{2f, 1f, 5f, 0.1f});
+        tabla.setSpacingBefore(12);
+        tabla.setSpacingAfter(6);
+        tabla.setKeepTogether(false);
+        return tabla;
+    }
+
+    private void agregarFilasOperario(PdfPTable tabla, List<partes_trabajo> partesOp) {
+        partes_trabajo primero = partesOp.get(0);
+        String nombreOp = primero.getPerfil().getName() + " " + primero.getPerfil().getApellidos();
+
+        agregarCeldaOperario(tabla, nombreOp, 4);
+
+        double totalHoras = 0;
+        boolean par = false;
+        for (partes_trabajo p : partesOp) {
+            Color bgFila = par ? COLOR_FILA_PAR : Color.WHITE;
+            par = !par;
+            agregarCeldaDato(tabla, FMT.format(p.getFecha()), bgFila, Element.ALIGN_CENTER);
+            agregarCeldaDato(tabla, formatHoras(p.getHoras_normales()), bgFila, Element.ALIGN_CENTER);
+            String desc = (p.getDescripcion() != null && !p.getDescripcion().isBlank())
+                    ? p.getDescripcion() : "Sin descripción";
+            agregarCeldaDato(tabla, desc, bgFila, Element.ALIGN_LEFT);
+            agregarCeldaDato(tabla, "", bgFila, Element.ALIGN_LEFT);
+            totalHoras += p.getHoras_normales();
+        }
+        agregarCeldaTotal(tabla, totalHoras, 4);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -268,8 +304,7 @@ public class pdf_service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private void agregarCeldaObra(PdfPTable tabla, String texto, String especialidad, int colspan) {
-        // Color diferente para fontanería vs electricidad
-        Color bg = especialidad.equals("FONTANERIA") ? new Color(13, 71, 161) : COLOR_HEADER_OBRA;
+        Color bg = especialidad.equals("FONTANERIA") ? COLOR_HEADER_ESP : COLOR_HEADER_OBRA;
         Font f = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, COLOR_TEXTO_BLANCO);
         PdfPCell cell = new PdfPCell(new Phrase(texto, f));
         cell.setColspan(colspan);
@@ -323,8 +358,12 @@ public class pdf_service {
         tabla.addCell(cell);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Utilidades
+    // ─────────────────────────────────────────────────────────────────────────
+
     private String formatHoras(double h) {
-        return h % 1 == 0 ? String.valueOf((int) h) + "h" : h + "h";
+        return h % 1 == 0 ? (int) h + "h" : h + "h";
     }
 
     private String sanitizarNombre(String nombre) {
