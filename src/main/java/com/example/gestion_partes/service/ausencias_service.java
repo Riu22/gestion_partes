@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.MonthDay;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,16 +27,38 @@ public class ausencias_service {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     /**
-     * Calcula los días laborables (L-V) sin parte para cada operario/encargado
-     * activo en la quincena actual.
+     * Festivos nacionales fijos (día/mes).
+     * Añade aquí los festivos autonómicos o locales que correspondan.
+     */
+    private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
+            MonthDay.of(1,  1),   // Año Nuevo
+            MonthDay.of(1,  6),   // Reyes Magos
+            MonthDay.of(5,  1),   // Día del Trabajador
+            MonthDay.of(8,  15),  // Asunción de la Virgen
+            MonthDay.of(10, 12),  // Fiesta Nacional de España
+            MonthDay.of(11, 1),   // Todos los Santos
+            MonthDay.of(12, 6),   // Día de la Constitución
+            MonthDay.of(12, 8),   // Inmaculada Concepción
+            MonthDay.of(12, 25)   // Navidad
+    );
+
+    private boolean esFestivo(LocalDate fecha) {
+        return FESTIVOS_FIJOS.contains(MonthDay.from(fecha));
+    }
+
+    /**
+     * Calcula los días laborables (L-V, no festivos, sin contar hoy)
+     * sin parte para cada operario/encargado activo en la quincena actual.
      *
      * Quincena:
      *   - Del 1 al 15 del mes en curso
      *   - Del 16 al último día del mes en curso
-     * Solo cuenta hasta hoy (no días futuros).
+     * Solo cuenta días pasados (excluye hoy y días futuros).
      */
     public Map<String, Object> getDiasSinParte() {
         LocalDate hoy = LocalDate.now();
+        // Excluir hoy: el límite es ayer
+        LocalDate ayer = hoy.minusDays(1);
 
         // ── Calcular rango de la quincena actual ──────────────────────────
         final LocalDate inicio;
@@ -43,14 +66,18 @@ public class ausencias_service {
         if (hoy.getDayOfMonth() <= 15) {
             inicio = hoy.withDayOfMonth(1);
             LocalDate finQuincena = hoy.withDayOfMonth(15);
-            fin = finQuincena.isAfter(hoy) ? hoy : finQuincena;
+            fin = finQuincena.isAfter(ayer) ? ayer : finQuincena;
         } else {
             inicio = hoy.withDayOfMonth(16);
             LocalDate finMes = hoy.withDayOfMonth(hoy.getMonth().length(hoy.isLeapYear()));
-            fin = finMes.isAfter(hoy) ? hoy : finMes;
+            fin = finMes.isAfter(ayer) ? ayer : finMes;
         }
 
-        // ── Días laborables del período ────────────────────────────────────
+        // Si aún no hay días pasados en la quincena (ej: hoy es día 1 o día 16)
+        // devolver vacío directamente
+        if (fin.isBefore(inicio)) return Collections.emptyMap();
+
+        // ── Días laborables del período (L-V, sin festivos) ───────────────
         List<LocalDate> diasLaborables = diasLaborablesEntre(inicio, fin);
 
         // ── Operarios y encargados activos ────────────────────────────────
@@ -74,7 +101,6 @@ public class ausencias_service {
         }
 
         // ── Calcular ausencias ────────────────────────────────────────────
-        // Resultado ordenado alfabéticamente por apellidos
         Map<String, Object> resultado = new LinkedHashMap<>();
 
         operarios.stream()
@@ -88,7 +114,6 @@ public class ausencias_service {
                             .map(d -> d.format(FMT))
                             .collect(Collectors.toList());
 
-                    // Solo incluir si tiene al menos 1 día sin parte
                     if (!diasSin.isEmpty()) {
                         Map<String, Object> info = new LinkedHashMap<>();
                         info.put("nombre", p.getName() + " " + p.getApellidos());
@@ -103,14 +128,15 @@ public class ausencias_service {
     }
 
     /**
-     * Devuelve todos los días de lunes a viernes entre [inicio] y [fin] inclusive.
+     * Devuelve todos los días laborables (L-V, sin festivos)
+     * entre [inicio] y [fin] inclusive.
      */
     private List<LocalDate> diasLaborablesEntre(LocalDate inicio, LocalDate fin) {
         List<LocalDate> dias = new ArrayList<>();
         LocalDate cursor = inicio;
         while (!cursor.isAfter(fin)) {
             DayOfWeek dow = cursor.getDayOfWeek();
-            if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
+            if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY && !esFestivo(cursor)) {
                 dias.add(cursor);
             }
             cursor = cursor.plusDays(1);
