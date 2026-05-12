@@ -35,8 +35,11 @@ public class partes_service {
     @Autowired obra_repo obra_repo;
     @Autowired configuration_service configuration_service;
 
-    @Value("${supabase.bucket.name}")
+    @Value("${supabase.url}")
     private String supabaseUrl;
+
+    @Value("${supabase.public.url}")
+    private String supabasePublicUrl;
 
     @Value("${supabase.service.key}")
     private String supabaseServiceKey;
@@ -312,7 +315,7 @@ public class partes_service {
                     "Error de conexión al subir la firma");
         }
 
-        return supabaseUrl + "/storage/v1/object/public/" + BUCKET_FIRMAS + "/" + objectPath;
+        return supabasePublicUrl + "/storage/v1/object/public/" + BUCKET_FIRMAS + "/" + objectPath;
     }
 
     private String slugify(String input) {
