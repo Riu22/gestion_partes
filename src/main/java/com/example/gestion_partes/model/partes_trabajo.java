@@ -33,6 +33,12 @@ public class partes_trabajo {
     @Column(name = "horas_extra", columnDefinition = "numeric(5,2)")
     private Double horas_extra = 0.0;
 
+    @Column(name = "firma_url")
+    private String firma_url;
+
+    @Column(name = "nombre_firmado")
+    private String nombre_firmado;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "especialidad")
     private especialidad especialidad;
@@ -69,8 +75,7 @@ public class partes_trabajo {
 
     public LocalDate getFecha() { return fecha; }
 
-    // Sin validación aquí — la validación de límite de fecha se hace
-    // en partes_service.create_parte() según el rol del solicitante
+
     public void setFecha(LocalDate fecha) { this.fecha = fecha; }
 
     public String getDescripcion() { return descripcion; }
@@ -88,5 +93,21 @@ public class partes_trabajo {
     public boolean isCreado_por_gestor() { return creado_por_gestor; }
     public void setCreado_por_gestor(boolean creado_por_gestor) {
         this.creado_por_gestor = creado_por_gestor;
+    }
+
+    public String getFirma_url() {
+        return firma_url;
+    }
+
+    public void setFirma_url(String firma_url) {
+        this.firma_url = firma_url;
+    }
+
+    public String getNombre_firmado() {
+        return nombre_firmado;
+    }
+
+    public void setNombre_firmado(String nombre_firmado) {
+        this.nombre_firmado = nombre_firmado;
     }
 }

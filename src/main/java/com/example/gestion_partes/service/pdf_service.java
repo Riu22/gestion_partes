@@ -26,8 +26,8 @@ public class pdf_service {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // ── Colores ───────────────────────────────────────────────────────────────
-    private static final Color COLOR_HEADER_OBRA  = new Color(21,  101, 192);
-    private static final Color COLOR_HEADER_ESP   = new Color(13,  71,  161);
+    private static final Color COLOR_HEADER_ELEC  = new Color(21,  101, 192); // azul — electricidad
+    private static final Color COLOR_HEADER_FONT  = new Color(13,  71,  161); // azul oscuro — fontanería
     private static final Color COLOR_HEADER_OP    = new Color(232, 240, 255);
     private static final Color COLOR_FILA_PAR     = new Color(248, 249, 252);
     private static final Color COLOR_TOTAL        = new Color(240, 244, 255);
@@ -36,7 +36,13 @@ public class pdf_service {
     private static final Color COLOR_BORDER       = new Color(200, 210, 230);
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ZIP: un PDF por obra física
+    // ZIP: un PDF por cada combinación obra + especialidad
+    //
+    // Ejemplos de nombres de fichero dentro del ZIP:
+    //   castanyetes_23_electricidad.pdf
+    //   castanyetes_23_fontaneria.pdf
+    //   castanyetes_26_electricidad.pdf
+    //   obra_sin_especialidad.pdf   ← partes sin especialidad asignada
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarZipPartes(
             List<Long>   obraIds,
@@ -44,25 +50,41 @@ public class pdf_service {
             LocalDate    desde,
             LocalDate    hasta) throws Exception {
 
-        List<partes_trabajo> todos = partes_trabajo_repo.findAll().stream()
-                .filter(p -> !p.getFecha().isBefore(desde) && !p.getFecha().isAfter(hasta))
-                .filter(p -> obraIds   == null || obraIds.isEmpty()   || obraIds.contains(p.getObra().getId()))
-                .filter(p -> perfilIds == null || perfilIds.isEmpty() || perfilIds.contains(p.getPerfil().getId().toString()))
-                .collect(Collectors.toList());
+        List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
-        Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
-        todos.forEach(p ->
-                porObra.computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>()).add(p));
+        // Agrupar: obraId + especialidad → partes
+        // Clave: "obraId|ESPECIALIDAD"  (e.g. "30|ELECTRICIDAD", "30|FONTANERIA", "30|SIN")
+        Map<String, List<partes_trabajo>> porObraEsp = new LinkedHashMap<>();
+        todos.stream()
+                .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
+                .forEach(p -> {
+                    String esp = p.getEspecialidad() != null
+                            ? p.getEspecialidad().name()
+                            : "SIN";
+                    String clave = p.getObra().getId() + "|" + esp;
+                    porObraEsp.computeIfAbsent(clave, k -> new ArrayList<>()).add(p);
+                });
 
         ByteArrayOutputStream zipBaos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(zipBaos)) {
-            for (Map.Entry<Long, List<partes_trabajo>> entry : porObra.entrySet()) {
-                List<partes_trabajo> partesObra = entry.getValue();
-                String nombreObra = partesObra.get(0).getObra().getNombre();
+            for (Map.Entry<String, List<partes_trabajo>> entry : porObraEsp.entrySet()) {
+                List<partes_trabajo> partesGrupo = entry.getValue();
+                partes_trabajo primero = partesGrupo.get(0);
 
-                byte[] pdfBytes = generarPdfUnaObra(nombreObra, partesObra, desde, hasta);
+                String nombreObra = primero.getObra().getNombre();
+                String esp = primero.getEspecialidad() != null
+                        ? primero.getEspecialidad().name()
+                        : "SIN";
 
-                String nombreFichero = sanitizarNombre(nombreObra) + ".pdf";
+                // Nombre del fichero: obra_electricidad.pdf / obra_fontaneria.pdf
+                String sufijo = switch (esp) {
+                    case "ELECTRICIDAD" -> "electricidad";
+                    case "FONTANERIA"   -> "fontaneria";
+                    default             -> "sin_especialidad";
+                };
+                String nombreFichero = sanitizarNombre(nombreObra) + "_" + sufijo + ".pdf";
+
+                byte[] pdfBytes = generarPdfGrupo(nombreObra, esp, partesGrupo, desde, hasta);
                 zos.putNextEntry(new ZipEntry(nombreFichero));
                 zos.write(pdfBytes);
                 zos.closeEntry();
@@ -73,7 +95,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PDF único (todas las obras en un solo archivo)
+    // PDF único — todas las obras en un solo archivo, separadas por especialidad
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
@@ -81,16 +103,21 @@ public class pdf_service {
             LocalDate    desde,
             LocalDate    hasta) throws Exception {
 
-        List<partes_trabajo> todos = partes_trabajo_repo.findAll().stream()
-                .filter(p -> !p.getFecha().isBefore(desde) && !p.getFecha().isAfter(hasta))
-                .filter(p -> obraIds   == null || obraIds.isEmpty()   || obraIds.contains(p.getObra().getId()))
-                .filter(p -> perfilIds == null || perfilIds.isEmpty() || perfilIds.contains(p.getPerfil().getId().toString()))
-                .collect(Collectors.toList());
+        List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
-        Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
+        // Agrupar por obra, dentro por especialidad
+        Map<Long, Map<String, List<partes_trabajo>>> porObraEsp = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
-                .forEach(p -> porObra.computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>()).add(p));
+                .forEach(p -> {
+                    String esp = p.getEspecialidad() != null
+                            ? p.getEspecialidad().name()
+                            : "SIN";
+                    porObraEsp
+                            .computeIfAbsent(p.getObra().getId(), k -> new LinkedHashMap<>())
+                            .computeIfAbsent(esp, k -> new ArrayList<>())
+                            .add(p);
+                });
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document doc = construirDocumento(baos);
@@ -99,21 +126,34 @@ public class pdf_service {
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
 
-        for (List<partes_trabajo> partesObra : porObra.values()) {
-            String nombreObra = partesObra.get(0).getObra().getNombre();
-            agregarSeccionObra(doc, nombreObra, partesObra);
+        for (Map.Entry<Long, Map<String, List<partes_trabajo>>> obraEntry : porObraEsp.entrySet()) {
+            Map<String, List<partes_trabajo>> porEsp = obraEntry.getValue();
+            String nombreObra = porEsp.values().iterator().next().get(0).getObra().getNombre();
+
+            // Orden: ELECTRICIDAD → FONTANERIA → SIN
+            List<String> ordenEsp = new ArrayList<>();
+            if (porEsp.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
+            if (porEsp.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
+            porEsp.keySet().stream()
+                    .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
+                    .forEach(ordenEsp::add);
+
+            for (String esp : ordenEsp) {
+                agregarTablaGrupo(doc, nombreObra, esp, porEsp.get(esp));
+            }
         }
 
-        if (porObra.isEmpty()) agregarVacio(doc);
+        if (porObraEsp.isEmpty()) agregarVacio(doc);
         doc.close();
         return baos.toByteArray();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PDF de una sola obra (usado por el ZIP)
+    // Genera el PDF de un grupo obra + especialidad (usado por el ZIP)
     // ─────────────────────────────────────────────────────────────────────────
-    private byte[] generarPdfUnaObra(
+    private byte[] generarPdfGrupo(
             String nombreObra,
+            String especialidad,
             List<partes_trabajo> partes,
             LocalDate desde,
             LocalDate hasta) throws Exception {
@@ -124,95 +164,44 @@ public class pdf_service {
         agregarPiePagina(writer);
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
-        agregarSeccionObra(doc, nombreObra, partes);
+        agregarTablaGrupo(doc, nombreObra, especialidad, partes);
         doc.close();
         return baos.toByteArray();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Enrutador: postventa → separa por especialidad; obra nueva → directo por operario
+    // Genera la tabla de un grupo obra + especialidad
     // ─────────────────────────────────────────────────────────────────────────
-    private void agregarSeccionObra(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
-        boolean esPostventa = Boolean.TRUE.equals(partes.get(0).getPerfil().getPostventa());
+    private void agregarTablaGrupo(
+            Document doc,
+            String nombreObra,
+            String especialidad,
+            List<partes_trabajo> partes) throws Exception {
 
-        if (esPostventa) {
-            agregarSeccionObraConEspecialidad(doc, nombreObra, partes);
-        } else {
-            agregarSeccionObraSinEspecialidad(doc, nombreObra, partes);
+        // Título: "Castanyetes 23  ·  Electricidad"  o  "Castanyetes 23  ·  Fontanería"
+        String titulo = nombreObra;
+        if (!especialidad.equals("SIN")) {
+            titulo += "  ·  " + labelEspecialidad(especialidad);
         }
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Obra nueva: cabecera solo con nombre de obra, agrupa directamente por operario
-    // ─────────────────────────────────────────────────────────────────────────
-    private void agregarSeccionObraSinEspecialidad(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
-
+        // Agrupar por operario, ordenado por apellidos, cada operario fecha desc
         Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
                 .forEach(p -> porOperario
                         .computeIfAbsent(p.getPerfil().getId(), k -> new ArrayList<>())
                         .add(p));
-
         porOperario.values().forEach(lista ->
                 lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
 
         PdfPTable tabla = crearTablaBase();
-        agregarCeldaObra(tabla, nombreObra, "SIN_ESPECIALIDAD", 4);
+        agregarCeldaObra(tabla, titulo, especialidad, 4);
 
         for (List<partes_trabajo> partesOp : porOperario.values()) {
             agregarFilasOperario(tabla, partesOp);
         }
 
         doc.add(tabla);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Postventa: separa por especialidad (ELECTRICIDAD → FONTANERIA → resto),
-    // dentro de cada bloque agrupa por operario
-    // ─────────────────────────────────────────────────────────────────────────
-    private void agregarSeccionObraConEspecialidad(Document doc, String nombreObra, List<partes_trabajo> partes) throws Exception {
-
-        Map<String, List<partes_trabajo>> porEspecialidad = new LinkedHashMap<>();
-        for (partes_trabajo p : partes) {
-            String esp = p.getEspecialidad() != null ? p.getEspecialidad().name() : "SIN_ESPECIALIDAD";
-            porEspecialidad.computeIfAbsent(esp, k -> new ArrayList<>()).add(p);
-        }
-
-        List<String> ordenEsp = new ArrayList<>();
-        if (porEspecialidad.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
-        if (porEspecialidad.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
-        porEspecialidad.keySet().stream()
-                .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
-                .forEach(ordenEsp::add);
-
-        for (String esp : ordenEsp) {
-            List<partes_trabajo> partesEsp = porEspecialidad.get(esp);
-
-            String tituloSeccion = nombreObra;
-            if (!esp.equals("SIN_ESPECIALIDAD")) {
-                tituloSeccion += "  ·  " + (esp.equals("FONTANERIA") ? "Fontanería" : "Electricidad");
-            }
-
-            Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
-            partesEsp.stream()
-                    .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
-                    .forEach(p -> porOperario
-                            .computeIfAbsent(p.getPerfil().getId(), k -> new ArrayList<>())
-                            .add(p));
-
-            porOperario.values().forEach(lista ->
-                    lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
-
-            PdfPTable tabla = crearTablaBase();
-            agregarCeldaObra(tabla, tituloSeccion, esp, 4);
-
-            for (List<partes_trabajo> partesOp : porOperario.values()) {
-                agregarFilasOperario(tabla, partesOp);
-            }
-
-            doc.add(tabla);
-        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -231,7 +220,8 @@ public class pdf_service {
 
     private void agregarFilasOperario(PdfPTable tabla, List<partes_trabajo> partesOp) {
         partes_trabajo primero = partesOp.get(0);
-        String nombreOp = primero.getPerfil().getName() + " " + primero.getPerfil().getApellidos();
+        String nombreOp = primero.getPerfil().getName()
+                + " " + primero.getPerfil().getApellidos();
 
         agregarCeldaOperario(tabla, nombreOp, 4);
 
@@ -275,7 +265,8 @@ public class pdf_service {
         });
     }
 
-    private void agregarCabeceraDocumento(Document doc, LocalDate desde, LocalDate hasta) throws Exception {
+    private void agregarCabeceraDocumento(Document doc, LocalDate desde, LocalDate hasta)
+            throws Exception {
         Font fTitulo = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, COLOR_TEXTO_DARK);
         Font fSub    = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.GRAY);
 
@@ -304,7 +295,7 @@ public class pdf_service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private void agregarCeldaObra(PdfPTable tabla, String texto, String especialidad, int colspan) {
-        Color bg = especialidad.equals("FONTANERIA") ? COLOR_HEADER_ESP : COLOR_HEADER_OBRA;
+        Color bg = especialidad.equals("FONTANERIA") ? COLOR_HEADER_FONT : COLOR_HEADER_ELEC;
         Font f = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, COLOR_TEXTO_BLANCO);
         PdfPCell cell = new PdfPCell(new Phrase(texto, f));
         cell.setColspan(colspan);
@@ -361,6 +352,28 @@ public class pdf_service {
     // ─────────────────────────────────────────────────────────────────────────
     // Utilidades
     // ─────────────────────────────────────────────────────────────────────────
+
+    private List<partes_trabajo> filtrar(
+            List<Long> obraIds,
+            List<String> perfilIds,
+            LocalDate desde,
+            LocalDate hasta) {
+        return partes_trabajo_repo.findAll().stream()
+                .filter(p -> !p.getFecha().isBefore(desde) && !p.getFecha().isAfter(hasta))
+                .filter(p -> obraIds == null || obraIds.isEmpty()
+                        || obraIds.contains(p.getObra().getId()))
+                .filter(p -> perfilIds == null || perfilIds.isEmpty()
+                        || perfilIds.contains(p.getPerfil().getId().toString()))
+                .collect(Collectors.toList());
+    }
+
+    private String labelEspecialidad(String esp) {
+        return switch (esp) {
+            case "ELECTRICIDAD" -> "Electricidad";
+            case "FONTANERIA"   -> "Fontaneria";
+            default             -> esp;
+        };
+    }
 
     private String formatHoras(double h) {
         return h % 1 == 0 ? (int) h + "h" : h + "h";
