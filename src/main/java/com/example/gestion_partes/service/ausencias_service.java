@@ -28,7 +28,7 @@ public class ausencias_service {
 
     /**
      * Festivos nacionales fijos (día/mes).
-     * Añade aquí los festivos autonómicos o locales que correspondan.
+     * Añade aquí los festivos autonomicos o locales que correspondan.
      */
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
             MonthDay.of(1,  1),   // Año Nuevo
@@ -57,10 +57,8 @@ public class ausencias_service {
      */
     public Map<String, Object> getDiasSinParte() {
         LocalDate hoy = LocalDate.now();
-        // Excluir hoy: el límite es ayer
         LocalDate ayer = hoy.minusDays(1);
 
-        // ── Calcular rango de la quincena actual ──────────────────────────
         final LocalDate inicio;
         final LocalDate fin;
         if (hoy.getDayOfMonth() <= 15) {
@@ -73,21 +71,16 @@ public class ausencias_service {
             fin = finMes.isAfter(ayer) ? ayer : finMes;
         }
 
-        // Si aún no hay días pasados en la quincena (ej: hoy es día 1 o día 16)
-        // devolver vacío directamente
         if (fin.isBefore(inicio)) return Collections.emptyMap();
 
-        // ── Días laborables del período (L-V, sin festivos) ───────────────
         List<LocalDate> diasLaborables = diasLaborablesEntre(inicio, fin);
 
-        // ── Operarios y encargados activos ────────────────────────────────
         List<perfil> operarios = perfil_repo.findAll().stream()
                 .filter(p -> p.isActivo())
                 .filter(p -> p.getRol() == user_rol.OPERARIO
                         || p.getRol() == user_rol.ENCARGADO)
                 .collect(Collectors.toList());
 
-        // ── Partes del período agrupados por perfil ───────────────────────
         List<partes_trabajo> partesPeriodo = partes_trabajo_repo
                 .findAll().stream()
                 .filter(p -> !p.getFecha().isBefore(inicio) && !p.getFecha().isAfter(fin))
@@ -100,7 +93,6 @@ public class ausencias_service {
                     .add(p.getFecha());
         }
 
-        // ── Calcular ausencias ────────────────────────────────────────────
         Map<String, Object> resultado = new LinkedHashMap<>();
 
         operarios.stream()
