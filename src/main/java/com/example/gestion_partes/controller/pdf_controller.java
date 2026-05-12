@@ -72,4 +72,20 @@ public class pdf_controller {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @GetMapping("/zip-por-operario")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<byte[]> zipPorOperario(
+            @RequestParam(required = false) List<Long> obraIds,
+            @RequestParam(required = false) List<String> perfilIds,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta)
+            throws Exception {
+
+        byte[] zip = pdf_service.generarZipPartesPorOperario(obraIds, perfilIds, desde, hasta);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=partes_por_operario.zip")
+                .contentType(org.springframework.http.MediaType.parseMediaType("application/zip"))
+                .body(zip);
+    }
 }
