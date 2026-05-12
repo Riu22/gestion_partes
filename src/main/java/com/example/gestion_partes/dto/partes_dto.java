@@ -18,7 +18,6 @@
         Double horas_extra,
         especialidad especialidad,
         String firma_base64,
-        @JsonProperty("nombre_firma")
         String nombre_firmado
     ) {
     }
