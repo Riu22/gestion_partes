@@ -35,7 +35,7 @@ public class partes_service {
     @Autowired obra_repo obra_repo;
     @Autowired configuration_service configuration_service;
 
-    @Value("${supabase.url}")
+    @Value("${supabase.bucket.name}")
     private String supabaseUrl;
 
     @Value("${supabase.service.key}")
