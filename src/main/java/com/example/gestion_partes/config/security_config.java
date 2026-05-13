@@ -45,7 +45,6 @@ public class security_config {
                                 "/swagger-ui.html",
                                 "/api/v1/version"
                         ).permitAll()
-                        // -----------------------
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

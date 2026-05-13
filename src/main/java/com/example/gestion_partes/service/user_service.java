@@ -62,18 +62,15 @@ public class user_service {
         // 1. Preparar metadatos (Enviamos TODO al trigger de la base de datos)
         Map<String, Object> metadata = new HashMap<>();
 
-        // Fíjate que ahora usamos "nombre" y "apellidos" para que coincida con el Trigger
         metadata.put("nombre", new_user.name());
         metadata.put("apellidos", new_user.apellidos());
         metadata.put("rol", new_user.rol().toString());
 
-        // Forzamos mayúsculas para la especialidad
         String especialidadStr = (new_user.especialidad() != null)
                 ? new_user.especialidad().name().toUpperCase()
                 : "ELECTRICIDAD";
         metadata.put("especialidad", especialidadStr);
 
-        // Añadimos el resto de campos si existen
         if (new_user.codigo() != null) {
             metadata.put("codigo", new_user.codigo());
         }
@@ -97,9 +94,6 @@ public class user_service {
             // 3. Enviar a Supabase Auth.
             // Esto crea el usuario y dispara el Trigger automáticamente.
             rest_template.postForEntity(url, request, String.class);
-
-            // ¡Listo! Ya no necesitamos Thread.sleep() ni user_repo.save()
-            // La creación es atómica e inmediata.
 
         } catch (Exception e) {
             throw new RuntimeException("Error al crear usuario en Supabase: " + e.getMessage());
