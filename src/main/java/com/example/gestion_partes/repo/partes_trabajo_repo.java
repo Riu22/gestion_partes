@@ -101,4 +101,15 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
     AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
 """)
     List<partes_trabajo> findPartesVisiblesParaJefeObra(@Param("perfilId") UUID perfilId);
+
+    @Query("SELECT p FROM partes_trabajo p WHERE " +
+            "p.obra.id IN :obraIds AND " +
+            "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +
+            "OR LOWER(p.perfil.apellidos) LIKE LOWER(CONCAT('%', :operario, '%'))) AND " +
+            "(:especialidad IS NULL OR p.especialidad = :especialidad)")
+    List<partes_trabajo> buscarPartesPorObraIds(
+            @Param("obraIds") List<Long> obraIds,
+            @Param("operario") String operario,
+            @Param("especialidad") String especialidad);
+
 }

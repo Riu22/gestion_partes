@@ -7,6 +7,7 @@ import com.example.gestion_partes.model.partes_jefe;
 import com.example.gestion_partes.model.partes_trabajo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
 import com.example.gestion_partes.service.configuration_service;
+import com.example.gestion_partes.service.obra_service;
 import com.example.gestion_partes.service.parte_jefe_service;
 import com.example.gestion_partes.service.partes_service;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,12 +15,14 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("api/v1/partes")
@@ -29,6 +32,8 @@ public class partes_controller {
     @Autowired parte_jefe_service parte_jefe_service;
     @Autowired partes_trabajo_repo partes_trabajo_repo;
     @Autowired configuration_service configuration_service;
+    @Autowired
+    obra_service obra_service;
 
     // ─── PARTES OPERARIO / ENCARGADO ───────────────────────────
 
@@ -124,7 +129,8 @@ public class partes_controller {
     public ResponseEntity<List<partes_trabajo>> buscar(
             @RequestParam(required = false) String obra,
             @RequestParam(required = false) String operario,
-            @RequestParam(required = false) String especialidad) {
+            @RequestParam(required = false) String especialidad,
+            Authentication authentication) {
 
         String especialidadParaQuery = null;
         if (especialidad != null && !especialidad.isBlank()) {
@@ -136,12 +142,40 @@ public class partes_controller {
             }
         }
 
-        String obraFiltro = (obra != null && !obra.isBlank()) ? obra : null;
+        String obraFiltro     = (obra != null && !obra.isBlank()) ? obra : null;
         String operarioFiltro = (operario != null && !operario.isBlank()) ? operario : null;
+
+        boolean isRestrictedRole = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(r -> r.equals("ROLE_ENCARGADO") || r.equals("ROLE_JEFE_DE_OBRA"));
+
+        if (isRestrictedRole) {
+            UUID perfilId = UUID.fromString(authentication.getName());
+            List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(perfilId);
+
+            if (obraIds.isEmpty()) {
+                return ResponseEntity.ok(List.of());
+            }
+
+            if (obraFiltro != null) {
+                try {
+                    Long obraIdFiltro = Long.parseLong(obraFiltro);
+                    if (!obraIds.contains(obraIdFiltro)) {
+                        return ResponseEntity.ok(List.of()); // obra no asignada
+                    }
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.ok(List.of()); // valor inválido
+                }
+            }
+
+            return ResponseEntity.ok(
+                    partes_trabajo_repo.buscarPartesPorObraIds(obraIds, operarioFiltro, especialidadParaQuery));
+        }
 
         return ResponseEntity.ok(
                 partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
     }
+
     @GetMapping("/puede-fecha-libre")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Boolean> puedeFechaLibre(

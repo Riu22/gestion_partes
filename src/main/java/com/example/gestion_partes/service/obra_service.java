@@ -2,6 +2,7 @@ package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.dto.obra_dto;
 import com.example.gestion_partes.model.obra;
+import com.example.gestion_partes.repo.asignacion_obra_repo;
 import com.example.gestion_partes.repo.obra_repo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -9,11 +10,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class obra_service {
     @Autowired
     obra_repo obra_repo;
+    @Autowired
+    asignacion_obra_repo asignaciones_obra_repo;
     public List<obra> get_all_obras() {
         return obra_repo.findAllByOrderByNombreAsc();
     }
@@ -65,5 +69,9 @@ public class obra_service {
         }
 
         return obra_repo.save(obra_existente);
+    }
+
+    public List<Long> getObrasAsignadasAUsuario(UUID perfilId) {
+        return asignaciones_obra_repo.findObraIdsByPerfilId(perfilId);
     }
 }

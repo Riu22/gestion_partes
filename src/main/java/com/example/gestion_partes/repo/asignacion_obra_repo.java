@@ -18,4 +18,9 @@ public interface asignacion_obra_repo extends JpaRepository<asignacion_obra, Lon
     List<asignacion_obra> findObrasDeEncargadoDeOperario(UUID operarioId);
 
     @Query("SELECT ao.perfil FROM asignacion_obra ao WHERE ao.obra.id = :obraId")
-    List<perfil> findPerfilesByObraId(@Param("obraId") Long obraId);}
+    List<perfil> findPerfilesByObraId(@Param("obraId") Long obraId);
+
+
+    @Query("SELECT a.obra.id FROM asignacion_obra a WHERE a.perfil.id = :perfilId")
+    List<Long> findObraIdsByPerfilId(@Param("perfilId") UUID perfilId);
+}
