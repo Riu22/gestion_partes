@@ -134,3 +134,22 @@ CREATE TRIGGER on_role_change
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+-- Paso 1: añadir nuevas columnas a partes_jefe
+ALTER TABLE public.partes_jefe
+    ADD COLUMN fecha_inicio           date,
+    ADD COLUMN fecha_fin              date,
+    ADD COLUMN total_horas_laborables numeric(8,2);
+
+-- Paso 2: sustituir porcentaje por horas + porcentajes calculados en partes_jefe_obras
+ALTER TABLE public.partes_jefe_obras
+    ADD COLUMN horas_electricas      numeric(8,2) NOT NULL DEFAULT 0,
+    ADD COLUMN horas_mecanicas       numeric(8,2) NOT NULL DEFAULT 0,
+    ADD COLUMN porcentaje_electrico  numeric(5,2) NOT NULL DEFAULT 0,
+    ADD COLUMN porcentaje_mecanico   numeric(5,2) NOT NULL DEFAULT 0;
+
+-- Eliminar la columna y constraint antiguos (solo si no hay datos que conservar)
+ALTER TABLE public.partes_jefe_obras
+DROP CONSTRAINT porcentaje_valido,
+    DROP COLUMN porcentaje;

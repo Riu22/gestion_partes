@@ -1,5 +1,6 @@
 package com.example.gestion_partes.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDate;
@@ -24,8 +25,12 @@ public class partes_jefe {
     @Column(name = "descripcion_tareas", columnDefinition = "TEXT")
     private String descripcion;
 
+    private LocalDate fecha_inicio;
+    private LocalDate fecha_fin;
+    private Double total_horas_laborables;
+
     @OneToMany(mappedBy = "parteJefe", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonIgnoreProperties("parteJefe")
     private List<partes_jefe_obra> obras = new ArrayList<>();
 
     public partes_jefe() {}
@@ -40,4 +45,28 @@ public class partes_jefe {
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
     public List<partes_jefe_obra> getObras() { return obras; }
     public void setObras(List<partes_jefe_obra> obras) { this.obras = obras; }
+
+    public LocalDate getFechaInicio() {
+        return fecha_inicio;
+    }
+
+    public void setFechaInicio(LocalDate fecha_inicio) {
+        this.fecha_inicio = fecha_inicio;
+    }
+
+    public LocalDate getFechaFin() {
+        return fecha_fin;
+    }
+
+    public void setFechaFin(LocalDate fecha_fin) {
+        this.fecha_fin = fecha_fin;
+    }
+
+    public Double getTotalHorasLaborables() {
+        return total_horas_laborables;
+    }
+
+    public void setTotalHorasLaborables(Double total_horas_laborables) {
+        this.total_horas_laborables = total_horas_laborables;
+    }
 }

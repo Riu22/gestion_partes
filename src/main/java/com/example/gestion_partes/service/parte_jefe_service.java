@@ -1,7 +1,7 @@
 package com.example.gestion_partes.service;
 
-import com.example.gestion_partes.dto.obra_porcentaje_dto;
-import com.example.gestion_partes.dto.partes_jefe_dto;
+import com.example.gestion_partes.dto.*;
+import com.example.gestion_partes.helper.calendario_laboral_helper;
 import com.example.gestion_partes.model.*;
 import com.example.gestion_partes.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +13,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.UUID;
 
+import static org.springframework.http.HttpStatus.*;
+
 @Service
 public class parte_jefe_service {
 
@@ -20,40 +22,55 @@ public class parte_jefe_service {
     @Autowired partes_jefe_obra_repo parte_jefe_obra_repo;
     @Autowired perfil_repo perfil_repo;
     @Autowired obra_repo obra_repo;
+    @Autowired
+    calendario_laboral_helper calendarioHelper;
 
     @Transactional
-    public partes_jefe create_parte_jefe(partes_jefe_dto partes_jefe_dto, String sub) {
+    public partes_jefe create_parte_jefe(partes_jefe_dto dto, String sub) {
+
         perfil jefe = perfil_repo.findById(UUID.fromString(sub))
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Perfil no encontrado"));
 
-        if (jefe.getRol() != user_rol.JEFE_DE_OBRA) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Solo los jefes de obra pueden crear este tipo de parte");
-        }
+        if (jefe.getRol() != user_rol.JEFE_DE_OBRA)
+            throw new ResponseStatusException(FORBIDDEN, "Solo jefes de obra pueden crear este parte");
 
-        // Validar que los porcentajes sumen exactamente 100
-        double total = partes_jefe_dto.obras().stream()
-                .mapToDouble(obra_porcentaje_dto::porcentaje)
+        // Calcular días laborables del período × 8h
+        double horasTotales = calendarioHelper.calcularHorasLaborales(
+                dto.fecha_inicio(), dto.fecha_fin(), 8.0);
+
+        if (horasTotales <= 0)
+            throw new ResponseStatusException(BAD_REQUEST, "El período no contiene días laborables");
+
+        // Validar que la suma de horas no supere el total disponible
+        double sumaHoras = dto.obras().stream()
+                .mapToDouble(o -> o.horas_electricas() + o.horas_mecanicas())
                 .sum();
-        if (Math.abs(total - 100.0) > 0.01) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Los porcentajes deben sumar 100%. Suma actual: " + total + "%");
-        }
+        if (sumaHoras > horasTotales + 0.01)
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Las horas totales (" + sumaHoras + "h) superan las horas laborables del período (" + horasTotales + "h)");
 
-        // Crear el parte — fecha automática
+        // Crear el parte
         partes_jefe nuevo = new partes_jefe();
         nuevo.setPerfil(jefe);
-        nuevo.setDescripcion(partes_jefe_dto.descripcion());
+        nuevo.setDescripcion(dto.descripcion());
+        nuevo.setFechaInicio(dto.fecha_inicio());
+        nuevo.setFechaFin(dto.fecha_fin());
+        nuevo.setTotalHorasLaborables(horasTotales);
         partes_jefe saved = parte_jefe_repo.save(nuevo);
 
-        // Crear las líneas de porcentaje por obra
-        for (obra_porcentaje_dto lineaDto : partes_jefe_dto.obras()) {
+        // Crear líneas por obra con porcentajes calculados
+        for (obra_horas_dto lineaDto : dto.obras()) {
             obra obra = obra_repo.findById(lineaDto.id_obra())
-                    .orElseThrow(() -> new ResponseStatusException(
-                            HttpStatus.NOT_FOUND,
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND,
                             "Obra no encontrada: " + lineaDto.id_obra()));
-            partes_jefe_obra linea = new partes_jefe_obra(saved, obra, lineaDto.porcentaje());
+
+            double pctElectrico = (lineaDto.horas_electricas() / horasTotales) * 100.0;
+            double pctMecanico  = (lineaDto.horas_mecanicas()  / horasTotales) * 100.0;
+
+            partes_jefe_obra linea = new partes_jefe_obra(
+                    saved, obra,
+                    lineaDto.horas_electricas(), lineaDto.horas_mecanicas(),
+                    pctElectrico, pctMecanico);
             parte_jefe_obra_repo.save(linea);
         }
 
@@ -63,7 +80,7 @@ public class parte_jefe_service {
     public List<partes_jefe> get_partes_jefe(String sub) {
         perfil usuario = perfil_repo.findById(UUID.fromString(sub))
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+                        NOT_FOUND, "Perfil no encontrado"));
 
         if (usuario.getRol() == user_rol.ADMINISTRACION
                 || usuario.getRol() == user_rol.GESTION) {
@@ -81,10 +98,10 @@ public class parte_jefe_service {
     public void validar_parte_jefe(Long parteId, String sub) {
         partes_jefe parte = parte_jefe_repo.findById(parteId)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Parte no encontrado"));
+                        NOT_FOUND, "Parte no encontrado"));
         perfil revisor = perfil_repo.findById(UUID.fromString(sub))
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Revisor no encontrado"));
+                        NOT_FOUND, "Revisor no encontrado"));
 
         if (revisor.getRol() == user_rol.ADMINISTRACION
                 || revisor.getRol() == user_rol.GESTION) {
@@ -92,15 +109,44 @@ public class parte_jefe_service {
             return;
         }
 
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+        throw new ResponseStatusException(FORBIDDEN,
                 "Solo GESTION o ADMINISTRACION pueden validar partes de jefes de obra");
     }
 
     public void delete_parte_jefe(Long parteId) {
         if (!parte_jefe_repo.existsById(parteId)) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND, "Parte no encontrado");
+                    NOT_FOUND, "Parte no encontrado");
         }
         parte_jefe_repo.deleteById(parteId);
+    }
+
+    public informe_jefe_dto generar_informe(Long parteId, String sub) {
+        partes_jefe parte = parte_jefe_repo.findById(parteId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Parte no encontrado"));
+
+        // Jefe solo ve sus propios partes
+        perfil usuario = perfil_repo.findById(UUID.fromString(sub)).orElseThrow();
+        if (usuario.getRol() == user_rol.JEFE_DE_OBRA
+                && !parte.getPerfil().getId().equals(usuario.getId()))
+            throw new ResponseStatusException(FORBIDDEN, "No puedes ver este parte");
+
+        List<informe_linea_dto> lineas = parte.getObras().stream()
+                .map(l -> new informe_linea_dto(
+                        l.getObra().getNombre(),
+                        l.getHoras_electricas(),
+                        l.getHoras_mecanicas(),
+                        // Redondear a 2 decimales para el informe
+                        Math.round(l.getPorcentaje_electrico() * 100.0) / 100.0,
+                        Math.round(l.getPorcentaje_mecanico()  * 100.0) / 100.0))
+                .toList();
+
+        return new informe_jefe_dto(
+                parte.getId(),
+                parte.getDescripcion(),
+                parte.getFechaInicio(),
+                parte.getFechaFin(),
+                parte.getTotalHorasLaborables(),
+                lineas);
     }
 }

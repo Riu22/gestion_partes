@@ -151,20 +151,20 @@ public class partes_service {
             return partes_trabajo_repo.findAll();
         }
 
-        List<partes_trabajo> resultado = new ArrayList<>(
-                partes_trabajo_repo.findByPerfilId(usuario.getId()));
-
-        if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
-            resultado.addAll(partes_trabajo_repo.findPartesParaJefeObra(usuario.getId()));
-        } else if (usuario.getRol() == user_rol.ENCARGADO) {
-            resultado.addAll(partes_trabajo_repo.findPartesParaEncargado(usuario.getId()));
+        if (usuario.getRol() == user_rol.OPERARIO) {
+            return partes_trabajo_repo.findByPerfilId(usuario.getId());
         }
 
-        return resultado.stream()
-                .collect(Collectors.toMap(partes_trabajo::getId, p -> p, (a, b) -> a))
-                .values()
-                .stream()
-                .toList();
+        if (usuario.getRol() == user_rol.ENCARGADO) {
+            return partes_trabajo_repo.findPartesVisiblesParaEncargado(
+                    usuario.getId(), usuario.getEspecialidad());
+        }
+
+        if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
+            return partes_trabajo_repo.findPartesVisiblesParaJefeObra(usuario.getId());
+        }
+
+        return partes_trabajo_repo.findByPerfilId(usuario.getId());
     }
 
     // ─── Eliminar parte ───────────────────────────────────────────────────────

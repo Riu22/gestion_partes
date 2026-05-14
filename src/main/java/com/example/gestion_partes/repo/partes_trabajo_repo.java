@@ -2,6 +2,7 @@ package com.example.gestion_partes.repo;
 
 import com.example.gestion_partes.dto.contabilidad_detalle_dto;
 import com.example.gestion_partes.dto.quincena_dto;
+import com.example.gestion_partes.model.especialidad;
 import com.example.gestion_partes.model.partes_trabajo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -55,6 +56,14 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
+    @Query("""
+    SELECT DISTINCT p FROM partes_trabajo p
+    JOIN asignacion_obra a ON a.obra.id = p.obra.id
+    WHERE a.perfil.id = :perfilId
+    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
+""")
+    List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
+
     @Query(value = "SELECT p.codigo as codigo, " +
             "p.nombre as nombre, " +
             "p.apellidos as apellidos, " +
@@ -72,4 +81,24 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta
     );
+
+    @Query("""
+    SELECT DISTINCT p FROM partes_trabajo p
+    JOIN asignacion_obra a ON a.obra.id = p.obra.id
+    WHERE a.perfil.id = :perfilId
+    AND p.especialidad = :especialidad
+    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
+""")
+    List<partes_trabajo> findPartesVisiblesParaEncargado(
+            @Param("perfilId") UUID perfilId,
+            @Param("especialidad") especialidad especialidad);
+
+    // Para JEFE_DE_OBRA: ve todos los partes de sus obras sin filtro de especialidad
+    @Query("""
+    SELECT DISTINCT p FROM partes_trabajo p
+    JOIN asignacion_obra a ON a.obra.id = p.obra.id
+    WHERE a.perfil.id = :perfilId
+    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
+""")
+    List<partes_trabajo> findPartesVisiblesParaJefeObra(@Param("perfilId") UUID perfilId);
 }

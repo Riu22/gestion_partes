@@ -63,7 +63,7 @@ CREATE TABLE public.partes_trabajo (
                                        descripcion_tareas TEXT,
                                        firmado BOOLEAN DEFAULT FALSE,
                                        creado_el TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    -- Límite: la fecha del parte no puede ser anterior a 2 semanas
+    -- Límite: la fecha del parteJefe no puede ser anterior a 2 semanas
                                        CONSTRAINT fecha_max_dos_semanas CHECK (fecha >= CURRENT_DATE - INTERVAL '14 days')
 );
 

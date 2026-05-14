@@ -1,5 +1,6 @@
 package com.example.gestion_partes.controller;
 
+import com.example.gestion_partes.dto.informe_jefe_dto;
 import com.example.gestion_partes.dto.partes_jefe_dto;
 import com.example.gestion_partes.dto.partes_dto;
 import com.example.gestion_partes.model.partes_jefe;
@@ -159,5 +160,14 @@ public class partes_controller {
             Authentication auth) {
         return ResponseEntity.ok(
                 partes_service.update_parte(parteId, dto, auth.getName()));
+    }
+
+    @GetMapping("/informe_jefe/{parteId}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
+    public ResponseEntity<informe_jefe_dto> informe_parte_jefe(
+            @PathVariable Long parteId,
+            Authentication auth) {
+        return ResponseEntity.ok(
+                parte_jefe_service.generar_informe(parteId, auth.getName()));
     }
 }
