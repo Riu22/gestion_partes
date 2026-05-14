@@ -111,5 +111,24 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("obraIds") List<Long> obraIds,
             @Param("operario") String operario,
             @Param("especialidad") String especialidad);
-
+    @Query(value = "SELECT p.codigo as codigo, " +
+            "p.nombre as nombre, " +
+            "p.apellidos as apellidos, " +
+            "p.grupo_profesional as grupo_profesional, " +
+            "o.nombre as obra_nombre, " +
+            "pt.fecha as fecha, " +
+            "(pt.horas_normales + pt.horas_extra) as horas_totales " +
+            "FROM partes_trabajo pt " +
+            "JOIN perfiles p ON pt.usuario_id = p.id " +
+            "JOIN obras o ON pt.point_obra_id = o.id " +
+            "WHERE pt.fecha BETWEEN :desde AND :hasta " +
+            "AND o.id IN :obraIds " +
+            "AND o.activa = true " +
+            "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
+            nativeQuery = true)
+    List<contabilidad_detalle_dto> getDetalleContabilidadPorObras(
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta,
+            @Param("obraIds") List<Long> obraIds
+    );
 }

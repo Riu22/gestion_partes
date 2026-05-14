@@ -21,14 +21,15 @@ public class contabilidad_service {
 
     public List<Map<String, Object>> getDetalleContabilidad(
             LocalDate desde, LocalDate hasta) {
-        return procesarLogicaDetalle(desde, hasta);
+        return procesarDatos(partes_trabajo_repo.getDetalleContabilidad(desde, hasta));
     }
 
-    private List<Map<String, Object>> procesarLogicaDetalle(
-            LocalDate desde, LocalDate hasta) {
+    public List<Map<String, Object>> getDetalleContabilidadPorObras(
+            LocalDate desde, LocalDate hasta, List<Long> obraIds) {
+        return procesarDatos(partes_trabajo_repo.getDetalleContabilidadPorObras(desde, hasta, obraIds));
+    }
 
-        List<contabilidad_detalle_dto> datos =
-                partes_trabajo_repo.getDetalleContabilidad(desde, hasta);
+    private List<Map<String, Object>> procesarDatos(List<contabilidad_detalle_dto> datos) {
 
         Map<String, Map<String, Object>> mapaAgrupado = new LinkedHashMap<>();
 
@@ -43,13 +44,13 @@ public class contabilidad_service {
                 String operarioFull = aps.isEmpty() ? nom : aps + ", " + nom;
 
                 Map<String, Object> fila = new LinkedHashMap<>();
-                fila.put("codigo",           codigoUser);
-                fila.put("operario",         operarioFull);
-                fila.put("obra",             nombreObra);
+                fila.put("codigo",            codigoUser);
+                fila.put("operario",          operarioFull);
+                fila.put("obra",              nombreObra);
                 fila.put("grupo_profesional",
                         d.getGrupo_profesional() != null ? d.getGrupo_profesional() : "No asignado");
-                fila.put("horas_por_dia",    new HashMap<LocalDate, Double>());
-                fila.put("total_horas",      0.0);
+                fila.put("horas_por_dia",     new HashMap<LocalDate, Double>());
+                fila.put("total_horas",       0.0);
                 return fila;
             });
 
