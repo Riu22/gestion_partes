@@ -58,9 +58,11 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
 
     @Query("""
     SELECT DISTINCT p FROM partes_trabajo p
-    JOIN asignacion_obra a ON a.obra.id = p.obra.id
-    WHERE a.perfil.id = :perfilId
-    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
+    WHERE p.perfil.id = :perfilId
+    OR p.obra.id IN (
+        SELECT a.obra.id FROM asignacion_obra a
+        WHERE a.perfil.id = :perfilId
+    )
 """)
     List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
 

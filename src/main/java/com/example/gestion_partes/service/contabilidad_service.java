@@ -47,7 +47,7 @@ public class contabilidad_service {
                 fila.put("codigo",            codigoUser);
                 fila.put("operario",          operarioFull);
                 fila.put("obra",              nombreObra);
-                fila.put("grupo_profesional",
+                fila.put("categoria_profesional",
                         d.getGrupo_profesional() != null ? d.getGrupo_profesional() : "No asignado");
                 fila.put("horas_por_dia",     new HashMap<LocalDate, Double>());
                 fila.put("total_horas",       0.0);

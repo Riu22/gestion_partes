@@ -151,20 +151,7 @@ public class partes_service {
             return partes_trabajo_repo.findAll();
         }
 
-        if (usuario.getRol() == user_rol.OPERARIO) {
-            return partes_trabajo_repo.findByPerfilId(usuario.getId());
-        }
-
-        if (usuario.getRol() == user_rol.ENCARGADO) {
-            return partes_trabajo_repo.findPartesVisiblesParaEncargado(
-                    usuario.getId(), usuario.getEspecialidad());
-        }
-
-        if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
-            return partes_trabajo_repo.findPartesVisiblesParaJefeObra(usuario.getId());
-        }
-
-        return partes_trabajo_repo.findByPerfilId(usuario.getId());
+        return partes_trabajo_repo.findPartesVisiblesParaPerfil(usuario.getId());
     }
 
     // ─── Eliminar parte ───────────────────────────────────────────────────────
