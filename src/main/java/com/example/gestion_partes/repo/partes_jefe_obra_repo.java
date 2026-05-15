@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface partes_jefe_obra_repo extends JpaRepository<partes_jefe_obra, Long> {
     List<partes_jefe_obra> findByParteJefeId(Long parteJefeId);
+
+    void deleteByParteJefeId(Long parteId);
 }

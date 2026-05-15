@@ -31,14 +31,12 @@ public class parte_jefe_service {
         if (jefe.getRol() != user_rol.JEFE_DE_OBRA)
             throw new ResponseStatusException(FORBIDDEN, "Solo jefes de obra pueden crear este parte");
 
-        // Calcular días laborables del período × 8h
         double horasTotales = calendarioHelper.calcularHorasLaborales(
                 dto.fecha_inicio(), dto.fecha_fin(), 8.0);
 
         if (horasTotales <= 0)
             throw new ResponseStatusException(BAD_REQUEST, "El período no contiene días laborables");
 
-        // Validar que la suma de horas no supere el total disponible
         double sumaHoras = dto.obras().stream()
                 .mapToDouble(o -> o.horas_electricas() + o.horas_mecanicas())
                 .sum();
@@ -46,7 +44,6 @@ public class parte_jefe_service {
             throw new ResponseStatusException(BAD_REQUEST,
                     "Las horas totales (" + sumaHoras + "h) superan las horas laborables del período (" + horasTotales + "h)");
 
-        // Crear el parte
         partes_jefe nuevo = new partes_jefe();
         nuevo.setPerfil(jefe);
         nuevo.setDescripcion(dto.descripcion());
@@ -55,7 +52,6 @@ public class parte_jefe_service {
         nuevo.setTotalHorasLaborables(horasTotales);
         partes_jefe saved = parte_jefe_repo.save(nuevo);
 
-        // Crear líneas por obra con porcentajes calculados
         for (obra_horas_dto lineaDto : dto.obras()) {
             obra obra = obra_repo.findById(lineaDto.id_obra())
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND,
@@ -74,6 +70,62 @@ public class parte_jefe_service {
         return parte_jefe_repo.findById(saved.getId()).orElseThrow();
     }
 
+    @Transactional
+    public partes_jefe update_parte_jefe(Long parteId, partes_jefe_dto dto, String sub) {
+
+        partes_jefe parte = parte_jefe_repo.findById(parteId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Parte no encontrado"));
+
+        perfil usuario = perfil_repo.findById(UUID.fromString(sub))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Perfil no encontrado"));
+
+        // Solo el propio jefe puede editar su parte (o admin/gestión)
+        if (usuario.getRol() == user_rol.JEFE_DE_OBRA
+                && !parte.getPerfil().getId().equals(usuario.getId()))
+            throw new ResponseStatusException(FORBIDDEN, "No puedes editar este parte");
+
+        // Recalcular horas laborables si cambian las fechas
+        double horasTotales = calendarioHelper.calcularHorasLaborales(
+                dto.fecha_inicio(), dto.fecha_fin(), 8.0);
+
+        if (horasTotales <= 0)
+            throw new ResponseStatusException(BAD_REQUEST, "El período no contiene días laborables");
+
+        double sumaHoras = dto.obras().stream()
+                .mapToDouble(o -> o.horas_electricas() + o.horas_mecanicas())
+                .sum();
+        if (sumaHoras > horasTotales + 0.01)
+            throw new ResponseStatusException(BAD_REQUEST,
+                    "Las horas totales (" + sumaHoras + "h) superan las horas laborables del período (" + horasTotales + "h)");
+
+        // Actualizar campos del parte
+        parte.setDescripcion(dto.descripcion());
+        parte.setFechaInicio(dto.fecha_inicio());
+        parte.setFechaFin(dto.fecha_fin());
+        parte.setTotalHorasLaborables(horasTotales);
+        parte_jefe_repo.save(parte);
+
+        // Borrar líneas antiguas y recrearlas
+        parte_jefe_obra_repo.deleteByParteJefeId(parteId);
+
+        for (obra_horas_dto lineaDto : dto.obras()) {
+            obra obra = obra_repo.findById(lineaDto.id_obra())
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND,
+                            "Obra no encontrada: " + lineaDto.id_obra()));
+
+            double pctElectrico = (lineaDto.horas_electricas() / horasTotales) * 100.0;
+            double pctMecanico  = (lineaDto.horas_mecanicas()  / horasTotales) * 100.0;
+
+            partes_jefe_obra linea = new partes_jefe_obra(
+                    parte, obra,
+                    lineaDto.horas_electricas(), lineaDto.horas_mecanicas(),
+                    pctElectrico, pctMecanico);
+            parte_jefe_obra_repo.save(linea);
+        }
+
+        return parte_jefe_repo.findById(parteId).orElseThrow();
+    }
+
     public List<partes_jefe> get_partes_jefe(String sub) {
         perfil usuario = perfil_repo.findById(UUID.fromString(sub))
                 .orElseThrow(() -> new ResponseStatusException(
@@ -84,7 +136,6 @@ public class parte_jefe_service {
             return parte_jefe_repo.findAll();
         }
 
-        // Jefe de obra ve los suyos propios
         if (usuario.getRol() == user_rol.JEFE_DE_OBRA) {
             return parte_jefe_repo.findByPerfilId(usuario.getId());
         }
@@ -122,7 +173,6 @@ public class parte_jefe_service {
         partes_jefe parte = parte_jefe_repo.findById(parteId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Parte no encontrado"));
 
-        // Jefe solo ve sus propios partes
         perfil usuario = perfil_repo.findById(UUID.fromString(sub)).orElseThrow();
         if (usuario.getRol() == user_rol.JEFE_DE_OBRA
                 && !parte.getPerfil().getId().equals(usuario.getId()))
@@ -133,7 +183,6 @@ public class parte_jefe_service {
                         l.getObra().getNombre(),
                         l.getHoras_electricas(),
                         l.getHoras_mecanicas(),
-                        // Redondear a 2 decimales para el informe
                         Math.round(l.getPorcentaje_electrico() * 100.0) / 100.0,
                         Math.round(l.getPorcentaje_mecanico()  * 100.0) / 100.0))
                 .toList();
@@ -158,12 +207,10 @@ public class parte_jefe_service {
             partes = parte_jefe_repo.findByPerfilIdAndMes(usuario.getId(), anio, mes);
         }
 
-        // Sumar horas totales del mes
         double totalHoras = partes.stream()
                 .mapToDouble(p -> p.getTotalHorasLaborables() != null ? p.getTotalHorasLaborables() : 0.0)
                 .sum();
 
-        // Agregar por obra
         Map<Long, resumen_obra_dto> obraMap = new LinkedHashMap<>();
         for (partes_jefe parte : partes) {
             for (partes_jefe_obra linea : parte.getObras()) {
@@ -190,7 +237,6 @@ public class parte_jefe_service {
             }
         }
 
-        // Lista partes individuales
         List<resumen_parte_dto> partesDto = partes.stream()
                 .map(p -> new resumen_parte_dto(
                         p.getId(),
@@ -219,12 +265,10 @@ public class parte_jefe_service {
             partes = parte_jefe_repo.findByPerfilIdAndFechaInicioBetween(usuario.getId(), desde, hasta);
         }
 
-        // Sumar horas totales del rango
         double totalHoras = partes.stream()
                 .mapToDouble(p -> p.getTotalHorasLaborables() != null ? p.getTotalHorasLaborables() : 0.0)
                 .sum();
 
-        // Agregar por obra
         Map<Long, informe_linea_dto> obraMap = new LinkedHashMap<>();
         for (partes_jefe parte : partes) {
             for (partes_jefe_obra linea : parte.getObras()) {
@@ -251,11 +295,7 @@ public class parte_jefe_service {
         }
 
         return new informe_jefe_dto(
-                null,
-                null,
-                desde,
-                hasta,
-                totalHoras,
+                null, null, desde, hasta, totalHoras,
                 new ArrayList<>(obraMap.values())
         );
     }

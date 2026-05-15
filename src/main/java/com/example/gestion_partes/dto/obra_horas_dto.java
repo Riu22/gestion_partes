@@ -1,4 +1,3 @@
-// dto/obra_horas_dto.java
 package com.example.gestion_partes.dto;
 
 import java.util.UUID;
