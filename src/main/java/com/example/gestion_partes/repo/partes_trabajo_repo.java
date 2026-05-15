@@ -84,26 +84,6 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
-    @Query("""
-    SELECT DISTINCT p FROM partes_trabajo p
-    JOIN asignacion_obra a ON a.obra.id = p.obra.id
-    WHERE a.perfil.id = :perfilId
-    AND p.especialidad = :especialidad
-    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
-""")
-    List<partes_trabajo> findPartesVisiblesParaEncargado(
-            @Param("perfilId") UUID perfilId,
-            @Param("especialidad") especialidad especialidad);
-
-    // Para JEFE_DE_OBRA: ve todos los partes de sus obras sin filtro de especialidad
-    @Query("""
-    SELECT DISTINCT p FROM partes_trabajo p
-    JOIN asignacion_obra a ON a.obra.id = p.obra.id
-    WHERE a.perfil.id = :perfilId
-    AND p.perfil.rol NOT IN ('JEFE_DE_OBRA', 'ADMINISTRACION', 'GESTION')
-""")
-    List<partes_trabajo> findPartesVisiblesParaJefeObra(@Param("perfilId") UUID perfilId);
-
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.obra.id IN :obraIds AND " +
             "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +

@@ -5,15 +5,12 @@ import com.example.gestion_partes.helper.calendario_laboral_helper;
 import com.example.gestion_partes.model.*;
 import com.example.gestion_partes.repo.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.List;
-import java.util.UUID;
-
+import java.util.*;
 import static org.springframework.http.HttpStatus.*;
+import java.time.LocalDate;
 
 @Service
 public class parte_jefe_service {
@@ -148,5 +145,118 @@ public class parte_jefe_service {
                 parte.getFechaFin(),
                 parte.getTotalHorasLaborables(),
                 lineas);
+    }
+
+    public resumen_mensual_jefe_dto get_resumen_mensual(String sub, int anio, int mes) {
+        perfil usuario = perfil_repo.findById(UUID.fromString(sub))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Perfil no encontrado"));
+
+        List<partes_jefe> partes;
+        if (usuario.getRol() == user_rol.ADMINISTRACION || usuario.getRol() == user_rol.GESTION) {
+            partes = parte_jefe_repo.findAllByMes(anio, mes);
+        } else {
+            partes = parte_jefe_repo.findByPerfilIdAndMes(usuario.getId(), anio, mes);
+        }
+
+        // Sumar horas totales del mes
+        double totalHoras = partes.stream()
+                .mapToDouble(p -> p.getTotalHorasLaborables() != null ? p.getTotalHorasLaborables() : 0.0)
+                .sum();
+
+        // Agregar por obra
+        Map<Long, resumen_obra_dto> obraMap = new LinkedHashMap<>();
+        for (partes_jefe parte : partes) {
+            for (partes_jefe_obra linea : parte.getObras()) {
+                if (linea.getObra() == null) continue;
+                Long obraId = linea.getObra().getId();
+                resumen_obra_dto existente = obraMap.get(obraId);
+
+                double hE = existente != null ? existente.horas_electricas() : 0.0;
+                double hM = existente != null ? existente.horas_mecanicas() : 0.0;
+
+                hE += linea.getHoras_electricas() != null ? linea.getHoras_electricas() : 0.0;
+                hM += linea.getHoras_mecanicas() != null ? linea.getHoras_mecanicas() : 0.0;
+
+                double pctE = totalHoras > 0 ? (hE / totalHoras) * 100.0 : 0.0;
+                double pctM = totalHoras > 0 ? (hM / totalHoras) * 100.0 : 0.0;
+
+                obraMap.put(obraId, new resumen_obra_dto(
+                        linea.getObra().getNombre(),
+                        linea.getObra().getCodigo(),
+                        hE, hM,
+                        Math.round(pctE * 100.0) / 100.0,
+                        Math.round(pctM * 100.0) / 100.0
+                ));
+            }
+        }
+
+        // Lista partes individuales
+        List<resumen_parte_dto> partesDto = partes.stream()
+                .map(p -> new resumen_parte_dto(
+                        p.getId(),
+                        p.getFechaInicio(),
+                        p.getFechaFin(),
+                        p.getTotalHorasLaborables(),
+                        p.getDescripcion()
+                ))
+                .toList();
+
+        return new resumen_mensual_jefe_dto(
+                anio, mes, totalHoras,
+                new ArrayList<>(obraMap.values()),
+                partesDto
+        );
+    }
+
+    public informe_jefe_dto generar_informe_rango(String sub, LocalDate desde, LocalDate hasta) {
+        perfil usuario = perfil_repo.findById(UUID.fromString(sub))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Perfil no encontrado"));
+
+        List<partes_jefe> partes;
+        if (usuario.getRol() == user_rol.ADMINISTRACION || usuario.getRol() == user_rol.GESTION) {
+            partes = parte_jefe_repo.findByFechaInicioBetween(desde, hasta);
+        } else {
+            partes = parte_jefe_repo.findByPerfilIdAndFechaInicioBetween(usuario.getId(), desde, hasta);
+        }
+
+        // Sumar horas totales del rango
+        double totalHoras = partes.stream()
+                .mapToDouble(p -> p.getTotalHorasLaborables() != null ? p.getTotalHorasLaborables() : 0.0)
+                .sum();
+
+        // Agregar por obra
+        Map<Long, informe_linea_dto> obraMap = new LinkedHashMap<>();
+        for (partes_jefe parte : partes) {
+            for (partes_jefe_obra linea : parte.getObras()) {
+                if (linea.getObra() == null) continue;
+                Long obraId = linea.getObra().getId();
+                informe_linea_dto existente = obraMap.get(obraId);
+
+                double hE = existente != null ? existente.horas_electricas() : 0.0;
+                double hM = existente != null ? existente.horas_mecanicas() : 0.0;
+
+                hE += linea.getHoras_electricas() != null ? linea.getHoras_electricas() : 0.0;
+                hM += linea.getHoras_mecanicas() != null ? linea.getHoras_mecanicas() : 0.0;
+
+                double pctE = totalHoras > 0 ? (hE / totalHoras) * 100.0 : 0.0;
+                double pctM = totalHoras > 0 ? (hM / totalHoras) * 100.0 : 0.0;
+
+                obraMap.put(obraId, new informe_linea_dto(
+                        linea.getObra().getNombre(),
+                        hE, hM,
+                        Math.round(pctE * 100.0) / 100.0,
+                        Math.round(pctM * 100.0) / 100.0
+                ));
+            }
+        }
+
+        return new informe_jefe_dto(
+                null,
+                null,
+                desde,
+                hasta,
+                totalHoras,
+                new ArrayList<>(obraMap.values())
+        );
     }
 }

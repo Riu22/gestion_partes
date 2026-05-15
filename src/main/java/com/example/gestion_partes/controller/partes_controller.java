@@ -3,6 +3,7 @@ package com.example.gestion_partes.controller;
 import com.example.gestion_partes.dto.informe_jefe_dto;
 import com.example.gestion_partes.dto.partes_jefe_dto;
 import com.example.gestion_partes.dto.partes_dto;
+import com.example.gestion_partes.dto.resumen_mensual_jefe_dto;
 import com.example.gestion_partes.model.partes_jefe;
 import com.example.gestion_partes.model.partes_trabajo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
@@ -32,8 +33,7 @@ public class partes_controller {
     @Autowired parte_jefe_service parte_jefe_service;
     @Autowired partes_trabajo_repo partes_trabajo_repo;
     @Autowired configuration_service configuration_service;
-    @Autowired
-    obra_service obra_service;
+    @Autowired obra_service obra_service;
 
     // ─── PARTES OPERARIO / ENCARGADO ───────────────────────────
 
@@ -203,5 +203,24 @@ public class partes_controller {
             Authentication auth) {
         return ResponseEntity.ok(
                 parte_jefe_service.generar_informe(parteId, auth.getName()));
+    }
+
+    @GetMapping("/resumen-mensual-jefe")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
+    public ResponseEntity<resumen_mensual_jefe_dto> resumen_mensual_jefe(
+            @RequestParam int anio,
+            @RequestParam int mes,
+            Authentication auth) {
+        return ResponseEntity.ok(
+                parte_jefe_service.get_resumen_mensual(auth.getName(), anio, mes));
+    }
+    @GetMapping("/informe-jefe-rango")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
+    public ResponseEntity<informe_jefe_dto> informe_jefe_rango(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            Authentication auth) {
+        return ResponseEntity.ok(
+                parte_jefe_service.generar_informe_rango(auth.getName(), desde, hasta));
     }
 }
