@@ -223,4 +223,13 @@ public class partes_controller {
         return ResponseEntity.ok(
                 parte_jefe_service.generar_informe_rango(auth.getName(), desde, hasta));
     }
+
+    @GetMapping("/resumen-mensual-por-usuario")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<?> resumen_mensual_por_usuario(
+            @RequestParam int anio,
+            @RequestParam int mes) {
+        return ResponseEntity.ok(
+                parte_jefe_service.get_resumen_mensual_por_usuario(anio, mes));
+    }
 }

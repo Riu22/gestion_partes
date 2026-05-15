@@ -11,30 +11,33 @@ import java.util.UUID;
 
 public interface parte_jefe_repo extends JpaRepository<partes_jefe, Long> {
 
-    // Partes propios del jefe
     List<partes_jefe> findByPerfilId(UUID perfilId);
 
-    // GESTION/ADMIN ven todos
     List<partes_jefe> findAll();
 
-    // Encargado ve partes de sus jefes directos
     @Query("SELECT p FROM partes_jefe p WHERE p.perfil.jefeDirecto.id = :encargadoId")
-    List<partes_jefe> findPartesParaEncargado(UUID encargadoId);
+    List<partes_jefe> findPartesParaEncargado(@Param("encargadoId") UUID encargadoId);
 
     @Query("""
-    SELECT p FROM partes_jefe p
-    WHERE p.perfil.id = :perfilId
-    AND FUNCTION('YEAR', p.fecha_inicio) = :anio
-    AND FUNCTION('MONTH', p.fecha_inicio) = :mes
-    """)
-    List<partes_jefe> findByPerfilIdAndMes(UUID perfilId, int anio, int mes);
+        SELECT p FROM partes_jefe p
+        WHERE p.perfil.id = :perfilId
+        AND EXTRACT(YEAR FROM p.fecha_inicio) = :anio
+        AND EXTRACT(MONTH FROM p.fecha_inicio) = :mes
+        """)
+    List<partes_jefe> findByPerfilIdAndMes(
+            @Param("perfilId") UUID perfilId,
+            @Param("anio") int anio,
+            @Param("mes") int mes);
 
     @Query("""
-    SELECT p FROM partes_jefe p
-    WHERE FUNCTION('YEAR', p.fecha_inicio) = :anio
-    AND FUNCTION('MONTH', p.fecha_inicio) = :mes
-    """)
-    List<partes_jefe> findAllByMes(@Param("anio") int anio, @Param("mes") int mes);
+        SELECT p FROM partes_jefe p
+        WHERE EXTRACT(YEAR FROM p.fecha_inicio) = :anio
+        AND EXTRACT(MONTH FROM p.fecha_inicio) = :mes
+        """)
+    List<partes_jefe> findAllByMes(
+            @Param("anio") int anio,
+            @Param("mes") int mes);
+
     @Query("SELECT p FROM partes_jefe p WHERE p.fecha_inicio >= :desde AND p.fecha_inicio <= :hasta")
     List<partes_jefe> findByFechaInicioBetween(
             @Param("desde") LocalDate desde,

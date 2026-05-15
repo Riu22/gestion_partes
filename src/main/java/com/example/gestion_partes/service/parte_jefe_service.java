@@ -259,4 +259,53 @@ public class parte_jefe_service {
                 new ArrayList<>(obraMap.values())
         );
     }
+
+    public List<Map<String, Object>> get_resumen_mensual_por_usuario(int anio, int mes) {
+        List<partes_jefe> partes = parte_jefe_repo.findAllByMes(anio, mes);
+
+        Map<UUID, List<partes_jefe>> porUsuario = new LinkedHashMap<>();
+        for (partes_jefe parte : partes) {
+            UUID id = parte.getPerfil().getId();
+            porUsuario.computeIfAbsent(id, k -> new ArrayList<>()).add(parte);
+        }
+
+        List<Map<String, Object>> resultado = new ArrayList<>();
+        for (Map.Entry<UUID, List<partes_jefe>> entry : porUsuario.entrySet()) {
+            List<partes_jefe> partesUsuario = entry.getValue();
+            perfil p = partesUsuario.get(0).getPerfil();
+
+            double totalHoras = partesUsuario.stream()
+                    .mapToDouble(x -> x.getTotalHorasLaborables() != null
+                            ? x.getTotalHorasLaborables() : 0.0)
+                    .sum();
+
+            Map<Long, resumen_obra_dto> obraMap = new LinkedHashMap<>();
+            for (partes_jefe parte : partesUsuario) {
+                for (partes_jefe_obra linea : parte.getObras()) {
+                    if (linea.getObra() == null) continue;
+                    Long obraId = linea.getObra().getId();
+                    resumen_obra_dto existente = obraMap.get(obraId);
+                    double hE = existente != null ? existente.horas_electricas() : 0.0;
+                    double hM = existente != null ? existente.horas_mecanicas() : 0.0;
+                    hE += linea.getHoras_electricas() != null ? linea.getHoras_electricas() : 0.0;
+                    hM += linea.getHoras_mecanicas() != null ? linea.getHoras_mecanicas() : 0.0;
+                    double pctE = totalHoras > 0 ? (hE / totalHoras) * 100.0 : 0.0;
+                    double pctM = totalHoras > 0 ? (hM / totalHoras) * 100.0 : 0.0;
+                    obraMap.put(obraId, new resumen_obra_dto(
+                            linea.getObra().getNombre(),
+                            linea.getObra().getCodigo(),
+                            hE, hM,
+                            Math.round(pctE * 100.0) / 100.0,
+                            Math.round(pctM * 100.0) / 100.0));
+                }
+            }
+
+            Map<String, Object> usuarioData = new LinkedHashMap<>();
+            usuarioData.put("nombre", (p.getName() + " " + p.getApellidos()).trim());
+            usuarioData.put("total_horas_laborables", totalHoras);
+            usuarioData.put("obras", new ArrayList<>(obraMap.values()));
+            resultado.add(usuarioData);
+        }
+        return resultado;
+    }
 }
