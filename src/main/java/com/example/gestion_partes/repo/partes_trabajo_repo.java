@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long> {
@@ -113,5 +114,19 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta,
             @Param("obraIds") List<Long> obraIds
+    );
+
+    @Query("SELECT MIN(p.fecha) FROM partes_trabajo p")
+    Optional<LocalDate> findFechaMasAntigua();
+
+    @Query("""
+    SELECT p.perfil.id, p.fecha, SUM(p.horas_normales)
+    FROM partes_trabajo p
+    WHERE p.fecha BETWEEN :inicio AND :fin
+    GROUP BY p.perfil.id, p.fecha
+    """)
+    List<Object[]> findHorasPorPerfilYFecha(
+            @Param("inicio") LocalDate inicio,
+            @Param("fin") LocalDate fin
     );
 }

@@ -1,64 +1,63 @@
 package com.example.gestion_partes.service;
 
+import com.example.gestion_partes.model.FechaPermitida;
+import com.example.gestion_partes.repo.FechaPermitidaRepo;
+import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.OffsetDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class configuration_service {
 
-    // Map<userId, Set<fechas permitidas>>
-    private final Map<String, Set<LocalDate>> fechasPermitidas = new ConcurrentHashMap<>();
+    @Autowired
+    FechaPermitidaRepo repo;
 
-    // Añade fechas sueltas a un usuario (no reemplaza, acumula)
-    public void habilitarFechas(String id, List<LocalDate> fechas) {
-        fechasPermitidas.computeIfAbsent(id, k -> new HashSet<>()).addAll(fechas);
+    public void habilitarFechas(String perfilId, List<LocalDate> fechas) {
+        UUID uuid = UUID.fromString(perfilId);
+        List<FechaPermitida> nuevas = fechas.stream()
+                .filter(f -> !repo.existsByPerfilIdAndFecha(uuid, f))
+                .map(f -> new FechaPermitida(uuid, f))
+                .toList();
+        repo.saveAll(nuevas);
     }
 
-    // Quita una fecha suelta concreta
-    public void deshabilitarFecha(String id, LocalDate fecha) {
-        Set<LocalDate> set = fechasPermitidas.get(id);
-        if (set != null) {
-            set.remove(fecha);
-            if (set.isEmpty()) fechasPermitidas.remove(id);
-        }
+    @Transactional
+    public void deshabilitarFecha(String perfilId, LocalDate fecha) {
+        repo.deleteByPerfilIdAndFecha(UUID.fromString(perfilId), fecha);
     }
 
-    // Quita todas las fechas de un usuario
-    public void deshabilitarTodas(String id) {
-        fechasPermitidas.remove(id);
+    @Transactional
+    public void deshabilitarTodas(String perfilId) {
+        repo.deleteByPerfilId(UUID.fromString(perfilId));
     }
 
-    // Comprueba si una fecha concreta está permitida para ese usuario
-    public boolean fechaPermitida(String id, LocalDate fecha) {
-        Set<LocalDate> set = fechasPermitidas.get(id);
-        if (set == null) return false;
-        return set.contains(fecha);
+    public boolean fechaPermitida(String perfilId, LocalDate fecha) {
+        return repo.existsByPerfilIdAndFecha(UUID.fromString(perfilId), fecha);
     }
 
-    // Devuelve todas las fechas permitidas de un usuario
-    public Set<LocalDate> getFechasDeUsuario(String id) {
-        return fechasPermitidas.getOrDefault(id, Set.of());
+    public List<LocalDate> getFechasDeUsuario(String perfilId) {
+        return repo.findByPerfilIdOrderByFechaAsc(UUID.fromString(perfilId))
+                .stream()
+                .map(FechaPermitida::getFecha)
+                .toList();
     }
 
-    // Para listar desde el front — Map<userId, List<fecha>>
     public Map<String, List<LocalDate>> getUsuariosActivos() {
-        return fechasPermitidas.entrySet().stream()
-                .filter(e -> !e.getValue().isEmpty())
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().stream().sorted().toList()
+        return repo.findAllByOrderByPerfilIdAscFechaAsc()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        f -> f.getPerfilId().toString(),
+                        LinkedHashMap::new,
+                        Collectors.mapping(FechaPermitida::getFecha, Collectors.toList())
                 ));
     }
 
-    public boolean puedeUsarFechaLibre(String id, LocalDate fecha) { // Added LocalDate fecha
-        Set<LocalDate> fechas = fechasPermitidas.get(id);
-        return fechas != null && fechas.contains(fecha);
+    public boolean puedeUsarFechaLibre(String perfilId, LocalDate fecha) {
+        return fechaPermitida(perfilId, fecha);
     }
 }

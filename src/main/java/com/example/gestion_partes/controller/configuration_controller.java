@@ -16,10 +16,10 @@ import java.util.Map;
 @RequestMapping("/api/v1/config/fecha-libre")
 public class configuration_controller {
 
-    @Autowired configuration_service service;
+    @Autowired
+    configuration_service service;
 
-    // Añadir fechas sueltas a un usuario
-    // Body: ["2025-05-21", "2025-04-18", "2025-06-30"]
+
     @PostMapping("/habilitar/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> habilitar(
@@ -29,7 +29,6 @@ public class configuration_controller {
         return ResponseEntity.ok("Fechas añadidas: " + fechas);
     }
 
-    // Quitar una fecha concreta
     @DeleteMapping("/deshabilitar/{id}/{fecha}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> deshabilitarFecha(
@@ -39,7 +38,6 @@ public class configuration_controller {
         return ResponseEntity.ok("Fecha eliminada");
     }
 
-    // Quitar todas las fechas de un usuario
     @DeleteMapping("/deshabilitar/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> deshabilitarTodas(@PathVariable String id) {
@@ -47,18 +45,15 @@ public class configuration_controller {
         return ResponseEntity.ok("Todas las fechas eliminadas");
     }
 
-    // Listar todos los usuarios con fechas activas
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<Map<String, List<LocalDate>>> listar() {
         return ResponseEntity.ok(service.getUsuariosActivos());
     }
 
-    // El usuario consulta sus propias fechas permitidas
     @GetMapping("/mis-fechas")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<LocalDate>> misFechas(Authentication auth) {
-        return ResponseEntity.ok(
-                service.getFechasDeUsuario(auth.getName()).stream().sorted().toList());
+        return ResponseEntity.ok(service.getFechasDeUsuario(auth.getName()));
     }
 }

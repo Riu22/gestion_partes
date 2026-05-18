@@ -34,6 +34,7 @@ public class partes_service {
     @Autowired perfil_repo perfil_repo;
     @Autowired obra_repo obra_repo;
     @Autowired configuration_service configuration_service;
+    @Autowired ausencias_service ausenciasService;
 
     @Value("${supabase.url}")
     private String supabaseUrl;
@@ -63,6 +64,8 @@ public class partes_service {
                         "No puedes crear partes con más de 2 semanas de antigüedad");
             }
         }
+
+
 
         if (!esGestor && !solicitante.getId().equals(dto.id_perfil())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -97,6 +100,12 @@ public class partes_service {
         nuevo.setHoras_extra(0.0);
         nuevo.setEspecialidad(dto.especialidad());
         nuevo.setNombre_firmado(dto.nombre_firmado());
+
+        // Bloquear creación si el operario está de baja o vacaciones ese día
+        if (ausenciasService.estaAusenteEnFecha(idPerfil, dto.fecha())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No se puede crear un parte: el operario está de baja o vacaciones ese día");
+        }
 
         boolean creadoParaOtro = !solicitante.getId().equals(idPerfil);
         nuevo.setCreado_por_gestor(esGestor && creadoParaOtro);
@@ -227,8 +236,16 @@ public class partes_service {
         if (dto.descripcion() != null) parte.setDescripcion(dto.descripcion());
         if (dto.especialidad() != null) parte.setEspecialidad(dto.especialidad());
 
-        return partes_trabajo_repo.save(parte);
-    }
+        // ── Validar ausencia en nueva fecha ──────────────────────────────────
+        if (dto.fecha() != null) {
+            if (ausenciasService.estaAusenteEnFecha(parte.getPerfil().getId(), dto.fecha())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "No se puede mover el parte: el operario está de baja o vacaciones ese día");
+            }
+            parte.setFecha(dto.fecha());
+        }
+
+        return partes_trabajo_repo.save(parte);    }
 
     // ─── Fechas con parte ─────────────────────────────────────────────────────
 
