@@ -72,9 +72,17 @@ public class contabilidad_service {
         Map<String, Map<String, Object>> mapaAgrupado = new LinkedHashMap<>();
 
         for (contabilidad_detalle_dto d : datos) {
-            String nombreObra = d.getObra_nombre() != null ? d.getObra_nombre() : "Sin Obra";
-            String codigoUser = d.getCodigo()      != null ? d.getCodigo()      : "000";
-            String clave      = codigoUser + "|" + nombreObra;
+            String nombreObraRaw = d.getObra_nombre() != null ? d.getObra_nombre() : "Sin Obra";
+            String especialidad  = d.getEspecialidad() != null
+                    ? d.getEspecialidad().toUpperCase() : "";
+            boolean esFont       = "FONTANERIA".equals(especialidad);
+
+            // Nombre que verá el frontend: "Font X" para fontanería, "X" para el resto
+            String nombreObraVista = esFont ? "Font " + nombreObraRaw : nombreObraRaw;
+
+            String codigoUser = d.getCodigo() != null ? d.getCodigo() : "000";
+            // Clave única por persona + obra + especialidad
+            String clave = codigoUser + "|" + nombreObraVista;
 
             mapaAgrupado.computeIfAbsent(clave, k -> {
                 String aps = d.getApellidos() != null ? d.getApellidos().toUpperCase() : "";
@@ -84,9 +92,10 @@ public class contabilidad_service {
                 Map<String, Object> fila = new LinkedHashMap<>();
                 fila.put("codigo",               codigoUser);
                 fila.put("operario",             operarioFull);
-                fila.put("obra",                 nombreObra);
+                fila.put("obra",                 nombreObraVista);
                 fila.put("categoria_profesional",
-                        d.getGrupo_profesional() != null ? d.getGrupo_profesional() : "No asignado");
+                        d.getGrupo_profesional() != null
+                                ? d.getGrupo_profesional() : "No asignado");
                 fila.put("horas_por_dia",        new HashMap<LocalDate, Double>());
                 fila.put("total_horas",          0.0);
                 return fila;
@@ -102,7 +111,6 @@ public class contabilidad_service {
             if (fechaKey != null) {
                 horasDia.merge(fechaKey, horas, Double::sum);
             }
-
             mapaAgrupado.get(clave)
                     .merge("total_horas", horas, (a, b) -> (double) a + (double) b);
         }
@@ -140,7 +148,8 @@ public class contabilidad_service {
                 filaLum.put("operario",             operarioFull);
                 filaLum.put("obra",                 OBRA_LUM);
                 filaLum.put("categoria_profesional",
-                        p.getGrupo_profesional() != null ? p.getGrupo_profesional() : "No asignado");
+                        p.getGrupo_profesional() != null
+                                ? p.getGrupo_profesional() : "No asignado");
                 filaLum.put("horas_por_dia",        new HashMap<LocalDate, Double>());
                 filaLum.put("total_horas",          0.0);
                 mapaAgrupado.put(claveLum, filaLum);

@@ -68,24 +68,6 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
 """)
     List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
 
-    @Query(value = "SELECT p.codigo as codigo, " +
-            "p.nombre as nombre, " +
-            "p.apellidos as apellidos, " +
-            "p.grupo_profesional as grupo_profesional, " +
-            "o.nombre as obra_nombre, " +
-            "pt.fecha as fecha, " +
-            "(pt.horas_normales + pt.horas_extra) as horas_totales " +
-            "FROM partes_trabajo pt " +
-            "JOIN perfiles p ON pt.usuario_id = p.id " +
-            "JOIN obras o ON pt.point_obra_id = o.id " +
-            "WHERE pt.fecha BETWEEN :desde AND :hasta " +
-            "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
-            nativeQuery = true)
-    List<contabilidad_detalle_dto> getDetalleContabilidad(
-            @Param("desde") LocalDate desde,
-            @Param("hasta") LocalDate hasta
-    );
-
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.obra.id IN :obraIds AND " +
             "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +
@@ -101,6 +83,26 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             "p.grupo_profesional as grupo_profesional, " +
             "o.nombre as obra_nombre, " +
             "pt.fecha as fecha, " +
+            "pt.especialidad as especialidad, " +
+            "(pt.horas_normales + pt.horas_extra) as horas_totales " +
+            "FROM partes_trabajo pt " +
+            "JOIN perfiles p ON pt.usuario_id = p.id " +
+            "JOIN obras o ON pt.point_obra_id = o.id " +
+            "WHERE pt.fecha BETWEEN :desde AND :hasta " +
+            "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
+            nativeQuery = true)
+    List<contabilidad_detalle_dto> getDetalleContabilidad(
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta
+    );
+
+    @Query(value = "SELECT p.codigo as codigo, " +
+            "p.nombre as nombre, " +
+            "p.apellidos as apellidos, " +
+            "p.grupo_profesional as grupo_profesional, " +
+            "o.nombre as obra_nombre, " +
+            "pt.fecha as fecha, " +
+            "pt.especialidad as especialidad, " +
             "(pt.horas_normales + pt.horas_extra) as horas_totales " +
             "FROM partes_trabajo pt " +
             "JOIN perfiles p ON pt.usuario_id = p.id " +

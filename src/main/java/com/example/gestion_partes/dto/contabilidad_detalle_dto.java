@@ -10,4 +10,5 @@ public interface contabilidad_detalle_dto {
     String getObra_nombre();
     LocalDate getFecha();
     Double getHoras_totales();
+    String getEspecialidad();
 }
