@@ -26,7 +26,7 @@ public class pdf_service {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // ── Colores ───────────────────────────────────────────────────────────────
-    private static final Color COLOR_HEADER_ELEC  = new Color(21,  101, 192);
+    private static final Color COLOR_HEADER_ELEC  = new Color(255, 185, 0);
     private static final Color COLOR_HEADER_FONT  = new Color(13,  71,  161);
     private static final Color COLOR_HEADER_OP    = new Color(232, 240, 255);
     private static final Color COLOR_FILA_PAR     = new Color(248, 249, 252);

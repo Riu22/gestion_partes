@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,16 +22,35 @@ public class csv_export_service {
 
         StringBuilder csv = new StringBuilder();
         csv.append('\ufeff');
-        csv.append("Código;Nombre;Obra;Total Horas\n");
+        csv.append("Obra;Código;Apellidos;Nombre;Horas Operario;Total Obra\n");
 
-        for (int i = 0; i < datos.size(); i++) {
-            quincena_dto linea = datos.get(i);
-            csv.append(String.format("%s;%s;%s;%.2f",
-                    linea.getCodigo() != null ? linea.getCodigo() : "",
-                    linea.getNombre(),
-                    linea.getObra(),
-                    linea.getTotal_horas()));
-            if (i < datos.size() - 1) csv.append("\n");
+        // Agrupar por obra manteniendo orden
+        Map<String, List<quincena_dto>> porObra = new LinkedHashMap<>();
+        for (quincena_dto d : datos) {
+            String obra = d.getObra() != null ? d.getObra() : "Sin Obra";
+            porObra.computeIfAbsent(obra, k -> new ArrayList<>()).add(d);
+        }
+
+        for (Map.Entry<String, List<quincena_dto>> entry : porObra.entrySet()) {
+            String obra = entry.getKey();
+            List<quincena_dto> operarios = entry.getValue();
+            double totalObra = operarios.stream()
+                    .mapToDouble(o -> o.getTotal_horas() != null ? o.getTotal_horas() : 0.0)
+                    .sum();
+
+            for (int i = 0; i < operarios.size(); i++) {
+                quincena_dto linea = operarios.get(i);
+                csv.append(String.format("%s;%s;%s;%s;%.2f;%s",
+                        i == 0 ? obra : "",
+                        linea.getCodigo() != null ? linea.getCodigo() : "",
+                        linea.getApellidos() != null ? linea.getApellidos() : "",
+                        linea.getNombre() != null ? linea.getNombre() : "",
+                        linea.getTotal_horas() != null ? linea.getTotal_horas() : 0.0,
+                        i == 0 ? String.format("%.2f", totalObra) : ""
+                ));
+                csv.append("\n");
+            }
+            csv.append("\n");
         }
 
         return buildResponse(csv.toString(),
