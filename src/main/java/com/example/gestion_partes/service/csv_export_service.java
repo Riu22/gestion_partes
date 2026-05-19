@@ -148,6 +148,7 @@ public class csv_export_service {
 
             XSSFSheet sheet = wb.createSheet("Detalle");
             sheet.setDefaultColumnWidth(6);
+            sheet.createFreezePane(0, 1);
 
             CellStyle csHeader       = headerStyle(wb);
             CellStyle csHeaderWe     = weekendHeaderStyle(wb);
@@ -200,11 +201,12 @@ public class csv_export_service {
                     cell.setCellValue(diaSemanaLetra(dia));
                     cell.setCellStyle(isDiaRojo(dia) ? csHeaderWe : csHeader);
                 }
-                // Columna totalCol: mostrar quincenaLabel en lugar de "TOTAL"
-                Cell hQuincena = hRow.createCell(totalCol);
+                Cell hTotal = hRow.createCell(totalCol);
+                hTotal.setCellValue("Total Horas");
+                hTotal.setCellStyle(csHeader);
+                Cell hQuincena = hRow.createCell(obraTotalCol);
                 hQuincena.setCellValue(quincenaLabel);
                 hQuincena.setCellStyle(csQuincena);
-                hRow.createCell(obraTotalCol).setCellStyle(csHeader);
 
                 // ── Cabecera fila 2: dd/MM ────────────────────────────────────
                 Row hRow2 = sheet.createRow(rowIdx++);
@@ -224,9 +226,8 @@ public class csv_export_service {
                     cell.setCellValue(dia.getDayOfMonth() + "/" + dia.getMonthValue());
                     cell.setCellStyle(isDiaRojo(dia) ? csHeaderWe : csHeader);
                 }
-                // Segunda fila de cabecera: repetir quincenaLabel (o dejar vacía)
-                hRow2.createCell(totalCol).setCellStyle(csQuincena);
-                hRow2.createCell(obraTotalCol).setCellStyle(csHeader);
+                hRow2.createCell(totalCol).setCellStyle(csHeader);
+                hRow2.createCell(obraTotalCol).setCellStyle(csQuincena);
 
                 // ── Filas operarios ───────────────────────────────────────────
                 double totalObra = 0;
