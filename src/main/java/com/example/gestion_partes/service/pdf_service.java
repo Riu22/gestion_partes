@@ -121,9 +121,6 @@ public class pdf_service {
     // ─────────────────────────────────────────────────────────────────────────
     // ZIP: un PDF por cada combinación operario + especialidad
     // Cabecera = nombre del operario
-    // Ejemplo de ficheros: juan_garcia_electricidad.pdf
-    //                      juan_garcia_fontaneria.pdf
-    //                      juan_garcia_sin_especialidad.pdf
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarZipPartesPorOperario(
             List<Long>   obraIds,
@@ -133,7 +130,6 @@ public class pdf_service {
 
         List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
-        // Agrupar: operarioId + especialidad → partes
         Map<String, List<partes_trabajo>> porOperarioEsp = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -174,7 +170,7 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // PDF único — todas las obras en un solo archivo
-    // Cabecera = nombre de la obra activa
+    // Una página por cada combinación obra + especialidad
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
@@ -203,6 +199,7 @@ public class pdf_service {
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
 
+        boolean primerGrupo = true;
         for (Map.Entry<Long, Map<String, List<partes_trabajo>>> obraEntry : porObraEsp.entrySet()) {
             Map<String, List<partes_trabajo>> porEsp = obraEntry.getValue();
 
@@ -217,6 +214,11 @@ public class pdf_service {
             evento.tituloActual = nombreObra;
 
             for (String esp : ordenEsp) {
+                // Cada combinación obra+especialidad en su propia página
+                if (!primerGrupo) {
+                    doc.newPage();
+                }
+                primerGrupo = false;
                 agregarGrupoAlDocumento(doc, nombreObra, esp, porEsp.get(esp), evento);
             }
         }
@@ -228,7 +230,6 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // PDF de un grupo obra + especialidad (usado por generarZipPartes)
-    // Cabecera = nombre de la obra
     // ─────────────────────────────────────────────────────────────────────────
     private byte[] generarPdfGrupo(
             String nombreObra,
@@ -251,8 +252,6 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // PDF de un operario + especialidad (usado por generarZipPartesPorOperario)
-    // Cabecera = nombre del operario
-    // Contenido = todas las obras de ese operario para esa especialidad
     // ─────────────────────────────────────────────────────────────────────────
     private byte[] generarPdfOperarioEsp(
             String nombreOp,
@@ -265,12 +264,10 @@ public class pdf_service {
         Document doc = construirDocumento(baos);
         PdfWriter writer = PdfWriter.getInstance(doc, baos);
         CabeceraPiePaginaEvent evento = agregarCabeceraYPie(writer);
-        // Cabecera fija = solo nombre del operario en todas las páginas
         evento.tituloActual = nombreOp;
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
 
-        // Agrupar por obra y renderizar cada una como sección separada
         Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
@@ -288,8 +285,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Añade la cabecera de sección (obra · especialidad) y las tablas por operario
-    // No modifica evento.tituloActual — lo gestiona el método llamante
+    // Añade la cabecera de sección y las tablas por operario
     // ─────────────────────────────────────────────────────────────────────────
     private void agregarGrupoAlDocumento(
             Document doc,
@@ -318,7 +314,6 @@ public class pdf_service {
         tablaHeader.addCell(celdaHeader);
         doc.add(tablaHeader);
 
-        // Agrupar por operario
         Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -334,7 +329,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Construye la tabla de un operario con keepTogether=true
+    // Tabla de un operario
     // ─────────────────────────────────────────────────────────────────────────
     private PdfPTable tablaOperario(List<partes_trabajo> partesOp) throws Exception {
         partes_trabajo primero = partesOp.get(0);
