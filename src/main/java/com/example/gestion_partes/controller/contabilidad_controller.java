@@ -24,7 +24,7 @@ public class contabilidad_controller {
     private contabilidad_service contabilidad_service;
 
     @Autowired
-    private csv_export_service csv_export_service;
+    private csv_export_service xlsx_export_service;
 
     @Autowired
     obra_service obra_service;
@@ -41,8 +41,8 @@ public class contabilidad_controller {
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<byte[]> exportar_quincena(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
-        return csv_export_service.buildQuincenaCsv(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) throws Exception {
+        return xlsx_export_service.buildQuincenaXlsx(
                 contabilidad_service.getResumenQuincena(desde, hasta), desde, hasta);
     }
 
@@ -56,10 +56,10 @@ public class contabilidad_controller {
 
     @GetMapping("/exportar-detalle-csv")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
-    public ResponseEntity<byte[]> exportarDetalleCsv(
+    public ResponseEntity<byte[]> exportarDetalleXlsx(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
-        return csv_export_service.buildDetalleCsv(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) throws Exception {
+        return xlsx_export_service.buildDetalleXlsx(
                 contabilidad_service.getDetalleContabilidad(desde, hasta), desde, hasta);
     }
 
@@ -81,17 +81,17 @@ public class contabilidad_controller {
 
     @GetMapping("/jefe/exportar-detalle-csv")
     @PreAuthorize("hasRole('JEFE_DE_OBRA')")
-    public ResponseEntity<byte[]> exportarDetalleCsvJefe(
+    public ResponseEntity<byte[]> exportarDetalleXlsxJefe(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            Authentication authentication) {
+            Authentication authentication) throws Exception {
 
         UUID perfilId = UUID.fromString(authentication.getName());
         List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(perfilId);
 
         if (obraIds.isEmpty()) return ResponseEntity.ok(new byte[0]);
 
-        return csv_export_service.buildDetalleCsv(
+        return xlsx_export_service.buildDetalleXlsx(
                 contabilidad_service.getDetalleContabilidadPorObras(desde, hasta, obraIds),
                 desde, hasta);
     }
