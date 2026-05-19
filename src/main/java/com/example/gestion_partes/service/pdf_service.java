@@ -211,14 +211,13 @@ public class pdf_service {
                     .forEach(ordenEsp::add);
 
             String nombreObra = porEsp.values().iterator().next().get(0).getObra().getNombre();
-            evento.tituloActual = nombreObra;
 
             for (String esp : ordenEsp) {
-                // Cada combinación obra+especialidad en su propia página
                 if (!primerGrupo) {
                     doc.newPage();
                 }
                 primerGrupo = false;
+                evento.tituloActual = nombreObra;
                 agregarGrupoAlDocumento(doc, nombreObra, esp, porEsp.get(esp), evento);
             }
         }
