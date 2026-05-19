@@ -13,6 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -48,7 +50,7 @@ public class user_service {
         if (datosNuevos.codigo() != null) perfilExistente.setCodigo(datosNuevos.codigo());
         if (datosNuevos.postventa() != null) perfilExistente.setPostventa(datosNuevos.postventa());
         if (datosNuevos.grupo_profesional() != null) perfilExistente.setGrupo_profesional(datosNuevos.grupo_profesional());
-
+        perfilExistente.setCreadoEl(OffsetDateTime.now());
         return user_repo.save(perfilExistente);
     }
 
