@@ -210,7 +210,13 @@ public class csv_export_service {
                 Row hRow2 = sheet.createRow(rowIdx++);
                 hRow2.setHeightInPoints(14);
                 for (int c = 0; c < fixedHeaders.length; c++) {
-                    hRow2.createCell(c).setCellStyle(csHeader);
+                    Cell cell = hRow2.createCell(c);
+                    if (c == 0) {
+                        cell.setCellValue(obra);
+                        cell.setCellStyle(csObra);
+                    } else {
+                        cell.setCellStyle(csHeader);
+                    }
                 }
                 for (int i = 0; i < diasRango.size(); i++) {
                     LocalDate dia = diasRango.get(i);
@@ -222,7 +228,7 @@ public class csv_export_service {
                 hRow2.createCell(totalCol).setCellStyle(csQuincena);
                 hRow2.createCell(obraTotalCol).setCellStyle(csHeader);
 
-                // ── Filas operarios (el nombre de obra va en col 0 del primero) ──
+                // ── Filas operarios ───────────────────────────────────────────
                 double totalObra = 0;
 
                 for (int opIdx = 0; opIdx < operarios.size(); opIdx++) {
@@ -242,14 +248,7 @@ public class csv_export_service {
                     Row row = sheet.createRow(rowIdx++);
                     row.setHeightInPoints(16);
 
-                    // Primera fila del grupo: nombre de obra en col 0 con estilo csObra
-                    if (opIdx == 0) {
-                        Cell cObra = row.createCell(0);
-                        cObra.setCellValue(obra);
-                        cObra.setCellStyle(csObra);
-                    } else {
-                        setCell(row, 0, safe(fila.get("codigo")), csNormal);
-                    }
+                    setCell(row, 0, safe(fila.get("codigo")), csNormal);
                     setCell(row, 1, safe(fila.get("operario")),                            csNormal);
                     setCell(row, 2, safe(fila.getOrDefault("categoria_profesional", "-")), csNormal);
                     setCell(row, 3, obra,                                                   csNormal);
