@@ -2,7 +2,6 @@ package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.dto.quincena_dto;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,28 +22,28 @@ public class csv_export_service {
     // ─────────────────────────────────────────────────────────────────────────
     private static final String COLOR_OBRA_BG      = "1E3A8A"; // azul oscuro cabecera obra
     private static final String COLOR_SUBTOTAL_BG  = "DBEAFE"; // azul muy claro fila subtotal
-    private static final String COLOR_WEEKEND_BG   = "FEE2E2"; // rosa claro fin de semana / festivo
+    private static final String COLOR_WEEKEND_BG   = "FF0000"; // rojo fin de semana / festivo
     private static final String COLOR_HEADER_BG    = "1E3A8A"; // igual que obra para la cabecera
-    private static final String COLOR_BAJA_BG      = "008000"; // verde celda B
-    private static final String COLOR_VAC_BG       = "FFB5C0"; // rosa celda V
-    private static final String COLOR_PAT_BG       = "BFDBFE"; // azul claro celda P
+    private static final String COLOR_BAJA_BG      = "84DCAE"; // verde celda B
+    private static final String COLOR_VAC_BG       = "EF75DE"; // rosa celda V
+    private static final String COLOR_PAT_BG       = "A2D2E8"; // azul claro celda P
     private static final String COLOR_SUBTOTAL_TEXT = "1D4ED8"; // azul texto subtotal
     private static final String COLOR_WHITE         = "FFFFFF";
     private static final String COLOR_TOTAL_TEXT    = "1D4ED8";
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  FESTIVOS NACIONALES FIJOS (mismos que contabilidad_service y Flutter)
+    //  FESTIVOS NACIONALES FIJOS
     // ─────────────────────────────────────────────────────────────────────────
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
-            MonthDay.of(1,  1),  // Año Nuevo
-            MonthDay.of(1,  6),  // Reyes
-            MonthDay.of(5,  1),  // Día del Trabajo
-            MonthDay.of(8,  15), // Asunción
-            MonthDay.of(10, 12), // Fiesta Nacional
-            MonthDay.of(11, 1),  // Todos los Santos
-            MonthDay.of(12, 6),  // Constitución
-            MonthDay.of(12, 8),  // Inmaculada
-            MonthDay.of(12, 25)  // Navidad
+            MonthDay.of(1,  1),
+            MonthDay.of(1,  6),
+            MonthDay.of(5,  1),
+            MonthDay.of(8,  15),
+            MonthDay.of(10, 12),
+            MonthDay.of(11, 1),
+            MonthDay.of(12, 6),
+            MonthDay.of(12, 8),
+            MonthDay.of(12, 25)
     );
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -59,14 +58,12 @@ public class csv_export_service {
             XSSFSheet sheet = wb.createSheet("Quincena");
             sheet.setDefaultColumnWidth(18);
 
-            // ── Estilos ───────────────────────────────────────────────────────
             CellStyle csHeader = headerStyle(wb);
             CellStyle csObra   = obraStyle(wb);
             CellStyle csNormal = normalStyle(wb);
             CellStyle csNumber = numberStyle(wb);
             CellStyle csTotal  = totalStyle(wb);
 
-            // ── Cabecera ──────────────────────────────────────────────────────
             String[] cols = {"Obra", "Código", "Apellidos", "Nombre",
                     "Horas Operario", "Total Obra"};
             Row hRow = sheet.createRow(0);
@@ -77,7 +74,6 @@ public class csv_export_service {
                 cell.setCellStyle(csHeader);
             }
 
-            // ── Datos agrupados por obra ───────────────────────────────────
             Map<String, List<quincena_dto>> porObra = new LinkedHashMap<>();
             for (quincena_dto d : datos) {
                 String obra = d.getObra() != null ? d.getObra() : "Sin Obra";
@@ -135,7 +131,7 @@ public class csv_export_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  DETALLE (con días)
+    //  DETALLE (con días) — SIN CELDAS COMBINADAS
     // ─────────────────────────────────────────────────────────────────────────
     public ResponseEntity<byte[]> buildDetalleXlsx(
             List<Map<String, Object>> filas, LocalDate desde, LocalDate hasta) throws Exception {
@@ -149,7 +145,6 @@ public class csv_export_service {
             XSSFSheet sheet = wb.createSheet("Detalle");
             sheet.setDefaultColumnWidth(6);
 
-            // ── Estilos ───────────────────────────────────────────────────────
             CellStyle csHeader   = headerStyle(wb);
             CellStyle csObra     = obraStyle(wb);
             CellStyle csNormal   = normalStyle(wb);
@@ -161,10 +156,14 @@ public class csv_export_service {
             CellStyle csVac      = vacStyle(wb);
             CellStyle csPat      = paternidadStyle(wb);
             CellStyle csTotalNum = totalNumStyle(wb);
+            CellStyle csHeaderWe = weekendHeaderStyle(wb);
 
             int FIXED_COLS = 4; // Código, Operario, Categoría, Obra
+            int totalCol   = FIXED_COLS + diasRango.size();
 
-            // ── Cabecera fila 1: letras del día ───────────────────────────────
+            // ── Cabecera fila 1: letra del día ────────────────────────────────
+            // (sin celdas combinadas: las columnas fijas sólo muestran el texto
+            //  en la fila 1 y quedan vacías en la fila 2)
             Row hRow = sheet.createRow(0);
             hRow.setHeightInPoints(18);
             String[] fixedHeaders = {"Código", "Operario", "Categoría", "Obra"};
@@ -172,24 +171,22 @@ public class csv_export_service {
                 Cell cell = hRow.createCell(c);
                 cell.setCellValue(fixedHeaders[c]);
                 cell.setCellStyle(csHeader);
-                sheet.addMergedRegion(new CellRangeAddress(0, 1, c, c));
             }
             for (int i = 0; i < diasRango.size(); i++) {
                 LocalDate dia = diasRango.get(i);
                 Cell cell = hRow.createCell(FIXED_COLS + i);
                 cell.setCellValue(diaSemanaLetra(dia));
-                // Rojo si fin de semana O festivo
-                cell.setCellStyle(isDiaRojo(dia) ? weekendHeaderStyle(wb) : csHeader);
+                cell.setCellStyle(isDiaRojo(dia) ? csHeaderWe : csHeader);
             }
-            Cell cTotalH = hRow.createCell(FIXED_COLS + diasRango.size());
+            // Columna TOTAL — texto en fila 1, vacía en fila 2
+            Cell cTotalH = hRow.createCell(totalCol);
             cTotalH.setCellValue("TOTAL");
             cTotalH.setCellStyle(csHeader);
-            sheet.addMergedRegion(new CellRangeAddress(0, 1,
-                    FIXED_COLS + diasRango.size(), FIXED_COLS + diasRango.size()));
 
             // ── Cabecera fila 2: número/mes ───────────────────────────────────
             Row hRow2 = sheet.createRow(1);
             hRow2.setHeightInPoints(14);
+            // Columnas fijas: estilo cabecera, sin texto (no hay combinación)
             for (int c = 0; c < fixedHeaders.length; c++) {
                 hRow2.createCell(c).setCellStyle(csHeader);
             }
@@ -197,9 +194,10 @@ public class csv_export_service {
                 LocalDate dia = diasRango.get(i);
                 Cell cell = hRow2.createCell(FIXED_COLS + i);
                 cell.setCellValue(dia.getDayOfMonth() + "/" + dia.getMonthValue());
-                cell.setCellStyle(isDiaRojo(dia) ? weekendHeaderStyle(wb) : csHeader);
+                cell.setCellStyle(isDiaRojo(dia) ? csHeaderWe : csHeader);
             }
-            hRow2.createCell(FIXED_COLS + diasRango.size()).setCellStyle(csHeader);
+            // Columna TOTAL fila 2: vacía con estilo
+            hRow2.createCell(totalCol).setCellStyle(csHeader);
 
             // ── Agrupar por obra ──────────────────────────────────────────────
             Map<String, List<Map<String, Object>>> porObra = new LinkedHashMap<>();
@@ -216,16 +214,14 @@ public class csv_export_service {
                 operarios.sort(Comparator.comparing(
                         f -> f.getOrDefault("operario", "").toString().toLowerCase()));
 
-                // ── Fila cabecera de obra ─────────────────────────────────────
+                // ── Fila cabecera de obra (sin combinar) ──────────────────────
+                // Solo la primera celda lleva el nombre; el resto estilo obra vacío.
                 Row obraRow = sheet.createRow(rowIdx++);
                 obraRow.setHeightInPoints(18);
                 Cell obraCell = obraRow.createCell(0);
                 obraCell.setCellValue(obra);
                 obraCell.setCellStyle(csObra);
-                int lastCol = FIXED_COLS + diasRango.size();
-                sheet.addMergedRegion(new CellRangeAddress(
-                        obraRow.getRowNum(), obraRow.getRowNum(), 0, lastCol));
-                for (int c = 1; c <= lastCol; c++) {
+                for (int c = 1; c <= totalCol; c++) {
                     obraRow.createCell(c).setCellStyle(csObra);
                 }
 
@@ -247,18 +243,17 @@ public class csv_export_service {
                     Row row = sheet.createRow(rowIdx++);
                     row.setHeightInPoints(16);
 
-                    setCell(row, 0, safe(fila.get("codigo")),                          csNormal);
-                    setCell(row, 1, safe(fila.get("operario")),                        csNormal);
+                    setCell(row, 0, safe(fila.get("codigo")),                              csNormal);
+                    setCell(row, 1, safe(fila.get("operario")),                            csNormal);
                     setCell(row, 2, safe(fila.getOrDefault("categoria_profesional", "-")), csNormal);
-                    setCell(row, 3, obra,                                               csNormal);
+                    setCell(row, 3, obra,                                                   csNormal);
 
                     for (int i = 0; i < diasRango.size(); i++) {
                         LocalDate dia = diasRango.get(i);
-                        String iso = dia.toString();
+                        String iso     = dia.toString();
                         String ausencia = ausencias.get(iso);
                         Cell cell = row.createCell(FIXED_COLS + i);
 
-                        // Estilo base del día: rojo si fin de semana O festivo
                         CellStyle baseStyle = isDiaRojo(dia) ? csWeekend : csNormal;
 
                         if ("BAJA".equals(ausencia)) {
@@ -281,24 +276,24 @@ public class csv_export_service {
                         }
                     }
 
-                    Cell cTotal = row.createCell(FIXED_COLS + diasRango.size());
+                    Cell cTotal = row.createCell(totalCol);
                     cTotal.setCellValue(totalPersona);
                     cTotal.setCellStyle(csTotalNum);
                 }
 
-                // ── Fila subtotal obra ────────────────────────────────────────
+                // ── Fila subtotal obra (sin combinar) ─────────────────────────
+                // Col 0 → "Total [obra]"   |   cols 1..totalCol-1 → vacías con estilo
+                // Col totalCol → número total de horas
                 Row subRow = sheet.createRow(rowIdx++);
                 subRow.setHeightInPoints(17);
 
-                int totalCol = FIXED_COLS + diasRango.size();
                 Cell subLabel = subRow.createCell(0);
                 subLabel.setCellValue("Total " + obra);
                 subLabel.setCellStyle(csSubtotal);
-                for (int c = 1; c <= totalCol; c++) {
+
+                for (int c = 1; c < totalCol; c++) {
                     subRow.createCell(c).setCellStyle(csSubtotal);
                 }
-                sheet.addMergedRegion(new CellRangeAddress(
-                        subRow.getRowNum(), subRow.getRowNum(), 0, totalCol - 1));
 
                 Cell subTotal = subRow.createCell(totalCol);
                 subTotal.setCellValue(totalObra);
@@ -315,7 +310,7 @@ public class csv_export_service {
             for (int i = 0; i < diasRango.size(); i++) {
                 sheet.setColumnWidth(FIXED_COLS + i, 2200);
             }
-            sheet.setColumnWidth(FIXED_COLS + diasRango.size(), 3500);
+            sheet.setColumnWidth(totalCol, 3500);
 
             sheet.createFreezePane(FIXED_COLS, 2);
 
@@ -347,7 +342,7 @@ public class csv_export_service {
 
     private CellStyle weekendHeaderStyle(XSSFWorkbook wb) {
         XSSFCellStyle cs = wb.createCellStyle();
-        cs.setFillForegroundColor(new XSSFColor(hexToBytes("7F1D1D"), null)); // rojo oscuro
+        cs.setFillForegroundColor(new XSSFColor(hexToBytes("FF0000"), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
@@ -540,7 +535,6 @@ public class csv_export_service {
         };
     }
 
-    /** Días que se marcan en rojo: fines de semana Y festivos nacionales fijos */
     private boolean isDiaRojo(LocalDate date) {
         return switch (date.getDayOfWeek()) {
             case SATURDAY, SUNDAY -> true;
