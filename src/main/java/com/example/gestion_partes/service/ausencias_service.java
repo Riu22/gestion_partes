@@ -63,17 +63,26 @@ public class ausencias_service {
 
     public Map<String, Object> getDiasSinParte() {
         LocalDate fin = LocalDate.now().minusDays(1);
-        LocalDate inicio = partes_trabajo_repo.findFechaMasAntigua().orElse(fin);
-        if (fin.isBefore(inicio)) return Collections.emptyMap();
-
-        List<LocalDate> diasLaborables = diasLaborablesEntre(inicio, fin);
 
         List<perfil> operarios = perfil_repo.findByActivoTrueAndRolIn(
                 List.of(user_rol.OPERARIO, user_rol.ENCARGADO)
         );
 
+        if (operarios.isEmpty()) return Collections.emptyMap();
+
+        // Fecha más antigua entre todos los perfiles (para precargar partes y ausencias en un solo rango)
+        LocalDate inicioGlobal = operarios.stream()
+                .map(p -> p.getCreadoEl() != null
+                        ? p.getCreadoEl().toLocalDate()
+                        : fin)
+                .min(Comparator.naturalOrder())
+                .orElse(fin);
+
+        if (fin.isBefore(inicioGlobal)) return Collections.emptyMap();
+
+        // Precargamos todas las horas del rango global en una sola query
         Map<UUID, Map<LocalDate, Double>> horasPorPerfilFecha = new HashMap<>();
-        partes_trabajo_repo.findHorasPorPerfilYFecha(inicio, fin)
+        partes_trabajo_repo.findHorasPorPerfilYFecha(inicioGlobal, fin)
                 .forEach(row -> {
                     UUID perfilId = (UUID) row[0];
                     LocalDate fecha = (LocalDate) row[1];
@@ -83,15 +92,23 @@ public class ausencias_service {
                             .put(fecha, horas);
                 });
 
-        // Cargamos todas las ausencias del rango en una sola query
-        Map<UUID, List<Ausencia>> ausenciasPorPerfil =
-                getAusenciasEnRango(inicio, fin);
+        // Precargamos todas las ausencias del rango global en una sola query
+        Map<UUID, List<Ausencia>> ausenciasPorPerfil = getAusenciasEnRango(inicioGlobal, fin);
 
         Map<String, Object> resultado = new LinkedHashMap<>();
 
         operarios.stream()
                 .sorted(Comparator.comparing(p -> p.getApellidos() + " " + p.getName()))
                 .forEach(p -> {
+                    // Rango específico de este perfil desde su fecha de creación
+                    LocalDate inicioPerfil = p.getCreadoEl() != null
+                            ? p.getCreadoEl().toLocalDate()
+                            : fin;
+
+                    if (fin.isBefore(inicioPerfil)) return; // creado hoy, nada que revisar
+
+                    List<LocalDate> diasLaborables = diasLaborablesEntre(inicioPerfil, fin);
+
                     Map<LocalDate, Double> horasPorFecha = horasPorPerfilFecha
                             .getOrDefault(p.getId(), Collections.emptyMap());
 
@@ -120,14 +137,14 @@ public class ausencias_service {
 
                     List<String> diasSin = diasLaborables.stream()
                             .filter(d -> !horasPorFecha.containsKey(d))
-                            .filter(d -> !diasJustificados.contains(d)) // ← excluir justificados
+                            .filter(d -> !diasJustificados.contains(d))
                             .map(d -> d.format(FMT))
                             .collect(Collectors.toList());
 
                     List<Map<String, Object>> diasIncompletos = diasLaborables.stream()
                             .filter(d -> horasPorFecha.containsKey(d)
                                     && horasPorFecha.get(d) < 8.0)
-                            .filter(d -> !diasJustificados.contains(d)) // ← excluir justificados
+                            .filter(d -> !diasJustificados.contains(d))
                             .map(d -> {
                                 double h = horasPorFecha.get(d);
                                 Map<String, Object> entry = new LinkedHashMap<>();

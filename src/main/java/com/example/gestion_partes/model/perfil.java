@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -33,6 +34,9 @@ public class perfil {
 
     @Column(name = "grupo_profesional")
     String grupo_profesional;
+
+    @Column(name = "creado_el")
+    private java.time.OffsetDateTime creadoEl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "jefe_directo_id")
@@ -138,5 +142,13 @@ public class perfil {
 
     public void setGrupo_profesional(String grupo_profesional) {
         this.grupo_profesional = grupo_profesional;
+    }
+
+    public OffsetDateTime getCreadoEl() {
+        return creadoEl;
+    }
+
+    public void setCreadoEl(OffsetDateTime creadoEl) {
+        this.creadoEl = creadoEl;
     }
 }
