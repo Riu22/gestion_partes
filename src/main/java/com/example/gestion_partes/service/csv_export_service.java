@@ -22,7 +22,7 @@ public class csv_export_service {
     // ─────────────────────────────────────────────────────────────────────────
     //  COLORES
     // ─────────────────────────────────────────────────────────────────────────
-    private static final String COLOR_OBRA_BG = "1E3A8A";
+    private static final String COLOR_OBRA_BG = "FFFFFF";
     private static final String COLOR_SUBTOTAL_BG = "DBEAFE";
     private static final String COLOR_WEEKEND_BG = "FF0000";
     private static final String COLOR_HEADER_BG = "1E3A8A";
