@@ -4,6 +4,7 @@ import com.example.gestion_partes.dto.contabilidad_detalle_dto;
 import com.example.gestion_partes.dto.quincena_dto;
 import com.example.gestion_partes.model.Ausencia;
 import com.example.gestion_partes.model.perfil;
+import com.example.gestion_partes.model.user_rol;
 import com.example.gestion_partes.repo.AusenciaRepo;
 import com.example.gestion_partes.repo.partes_trabajo_repo;
 import com.example.gestion_partes.repo.perfil_repo;
@@ -137,7 +138,11 @@ public class contabilidad_service {
         //  frontend los muestre con todo en '-' pero aparezcan en la tabla
         //  y en el filtro de operarios.
         //
-        List<perfil> perfilesActivos = perfil_repo.findByActivoTrue();
+        List<perfil> perfilesActivos = perfil_repo.findByActivoTrue()
+                .stream()
+                .filter(p -> p.getRol() == user_rol.OPERARIO
+                        || p.getRol() == user_rol.ENCARGADO)
+                .collect(Collectors.toList());
 
         for (perfil p : perfilesActivos) {
             if (p.getCodigo() == null) continue;
