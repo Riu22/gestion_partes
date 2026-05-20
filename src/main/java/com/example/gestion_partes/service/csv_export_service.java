@@ -25,7 +25,7 @@ public class csv_export_service {
     private static final String COLOR_OBRA_BG      = "FFFFFF";
     private static final String COLOR_SUBTOTAL_BG  = "DBEAFE";
     private static final String COLOR_WEEKEND_BG   = "FF0000";
-    private static final String COLOR_HEADER_BG    = "FFFFFF"; // antes 1E3A8A
+    private static final String COLOR_HEADER_BG    = "FFFFFF";
     private static final String COLOR_BAJA_BG      = "84DCAE";
     private static final String COLOR_VAC_BG       = "EF75DE";
     private static final String COLOR_PAT_BG       = "A2D2E8";
@@ -33,11 +33,8 @@ public class csv_export_service {
     private static final String COLOR_WHITE        = "FFFFFF";
     private static final String COLOR_BLACK        = "000000";
     private static final String COLOR_TOTAL_TEXT   = "1D4ED8";
-    private static final String COLOR_GRAN_TOTAL_BG = "FFFFFF"; // antes 1E3A8A
+    private static final String COLOR_GRAN_TOTAL_BG = "FFFFFF";
 
-    // ─────────────────────────────────────────────────────────────────────────
-    //  FESTIVOS NACIONALES FIJOS
-    // ─────────────────────────────────────────────────────────────────────────
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
             MonthDay.of(1, 1),  MonthDay.of(1, 6),  MonthDay.of(5, 1),
             MonthDay.of(8, 15), MonthDay.of(10, 12), MonthDay.of(11, 1),
@@ -45,7 +42,7 @@ public class csv_export_service {
     );
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  QUINCENA
+    //  QUINCENA (Resumen)
     // ─────────────────────────────────────────────────────────────────────────
     public ResponseEntity<byte[]> buildQuincenaXlsx(
             List<quincena_dto> datos, LocalDate desde, LocalDate hasta) throws Exception {
@@ -106,7 +103,7 @@ public class csv_export_service {
                     if (i == 0) { cTotal.setCellValue(totalObra); cTotal.setCellStyle(csTotal); }
                     else         { cTotal.setCellStyle(csNormal); }
                 }
-                sheet.createRow(rowIdx++);
+                rowIdx++; // Deja fila en blanco de forma limpia entre obras
             }
 
             for (int c = 0; c < 4; c++) sheet.autoSizeColumn(c);
@@ -119,19 +116,16 @@ public class csv_export_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  DETALLE (con días)
+    //  DETALLE (Día a día)
     // ─────────────────────────────────────────────────────────────────────────
     public ResponseEntity<byte[]> buildDetalleXlsx(
             List<Map<String, Object>> filas, LocalDate desde, LocalDate hasta) throws Exception {
 
-        List<LocalDate> diasRango = desde.datesUntil(hasta.plusDays(1))
-                .collect(Collectors.toList());
+        List<LocalDate> diasRango = desde.datesUntil(hasta.plusDays(1)).collect(Collectors.toList());
 
-        String mesNombre = desde.getMonth()
-                .getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
+        String mesNombre = desde.getMonth().getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
         mesNombre = mesNombre.substring(0, 1).toUpperCase() + mesNombre.substring(1);
-        final String quincenaLabel = (desde.getDayOfMonth() <= 15 ? "1ª Quincena" : "2ª Quincena")
-                + " - " + mesNombre;
+        final String quincenaLabel = (desde.getDayOfMonth() <= 15 ? "1ª Quincena" : "2ª Quincena") + " - " + mesNombre;
 
         try (XSSFWorkbook wb = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -173,17 +167,16 @@ public class csv_export_service {
             for (Map.Entry<String, List<Map<String, Object>>> entry : porObra.entrySet()) {
                 String obra = entry.getKey();
                 List<Map<String, Object>> operarios = new ArrayList<>(entry.getValue());
-                operarios.sort(Comparator.comparing(
-                        f -> f.getOrDefault("operario", "").toString().toLowerCase()));
 
-                // ── Cabecera fila 1: letra día ────────────────────────────────
+                // Optimización: Ordenación alfabética in-place eficiente
+                operarios.sort(Comparator.comparing(f -> f.getOrDefault("operario", "").toString().toLowerCase()));
+
+                // ── Cabecera fila 1: letra día ──
                 Row hRow = sheet.createRow(rowIdx++);
                 hRow.setHeightInPoints(18);
                 String[] fixedHeaders = {"Código","Operario","Categoría","Obra"};
                 for (int c = 0; c < fixedHeaders.length; c++) {
-                    Cell cell = hRow.createCell(c);
-                    cell.setCellValue(fixedHeaders[c]);
-                    cell.setCellStyle(csHeader);
+                    setCell(hRow, c, fixedHeaders[c], csHeader);
                 }
                 for (int i = 0; i < diasRango.size(); i++) {
                     LocalDate dia = diasRango.get(i);
@@ -191,14 +184,10 @@ public class csv_export_service {
                     cell.setCellValue(diaSemanaLetra(dia));
                     cell.setCellStyle(isDiaRojo(dia) ? csHeaderWe : csHeader);
                 }
-                Cell hTotal = hRow.createCell(totalCol);
-                hTotal.setCellValue("Total Horas");
-                hTotal.setCellStyle(csHeader);
-                Cell hQuincena = hRow.createCell(obraTotalCol);
-                hQuincena.setCellValue(quincenaLabel);
-                hQuincena.setCellStyle(csQuincena);
+                setCell(hRow, totalCol, "Total Horas", csHeader);
+                setCell(hRow, obraTotalCol, quincenaLabel, csQuincena);
 
-                // ── Cabecera fila 2: dd/MM ────────────────────────────────────
+                // ── Cabecera fila 2: dd/MM ──
                 Row hRow2 = sheet.createRow(rowIdx++);
                 hRow2.setHeightInPoints(14);
                 for (int c = 0; c < fixedHeaders.length; c++) {
@@ -215,20 +204,16 @@ public class csv_export_service {
                 hRow2.createCell(totalCol).setCellStyle(csHeader);
                 hRow2.createCell(obraTotalCol).setCellStyle(csQuincena);
 
-                // ── Filas operarios ───────────────────────────────────────────
+                // ── Filas operarios ──
                 double totalObra = 0;
 
-                for (int opIdx = 0; opIdx < operarios.size(); opIdx++) {
-                    Map<String, Object> fila = operarios.get(opIdx);
+                for (Map<String, Object> fila : operarios) {
                     @SuppressWarnings("unchecked")
-                    Map<LocalDate, Double> horasDias =
-                            (Map<LocalDate, Double>) fila.getOrDefault("horas_por_dia", Map.of());
+                    Map<LocalDate, Double> horasDias = (Map<LocalDate, Double>) fila.getOrDefault("horas_por_dia", Map.of());
                     @SuppressWarnings("unchecked")
-                    Map<String, String> ausencias =
-                            (Map<String, String>) fila.getOrDefault("ausencias_por_dia", Map.of());
+                    Map<String, String> ausencias = (Map<String, String>) fila.getOrDefault("ausencias_por_dia", Map.of());
 
-                    double totalPersona = fila.get("total_horas") instanceof Number
-                            ? ((Number) fila.get("total_horas")).doubleValue() : 0.0;
+                    double totalPersona = fila.get("total_horas") instanceof Number ? ((Number) fila.get("total_horas")).doubleValue() : 0.0;
                     totalObra        += totalPersona;
                     granTotalPersonas += totalPersona;
 
@@ -242,8 +227,7 @@ public class csv_export_service {
 
                     for (int i = 0; i < diasRango.size(); i++) {
                         LocalDate dia = diasRango.get(i);
-                        String iso     = dia.toString();
-                        String ausencia = ausencias.get(iso);
+                        String ausencia = ausencias.get(dia.toString());
                         Cell cell      = row.createCell(FIXED_COLS + i);
                         CellStyle base = isDiaRojo(dia) ? csWeekend : csNormal;
 
@@ -268,7 +252,7 @@ public class csv_export_service {
 
                 granTotalObras += totalObra;
 
-                // ── Fila subtotal obra ────────────────────────────────────────
+                // ── Fila subtotal obra ──
                 Row subRow = sheet.createRow(rowIdx++);
                 subRow.setHeightInPoints(17);
                 Cell subLabel = subRow.createCell(0);
@@ -282,7 +266,7 @@ public class csv_export_service {
                 rowIdx++;
             }
 
-            // ── Gran total ────────────────────────────────────────────────────
+            // ── Gran total ──
             Row gtRow = sheet.createRow(rowIdx++);
             gtRow.setHeightInPoints(20);
             Cell gtLabel = gtRow.createCell(0);
@@ -296,7 +280,7 @@ public class csv_export_service {
             gtONum.setCellValue(granTotalObras);
             gtONum.setCellStyle(csGranTotalNum);
 
-            // ── Anchos de columna ─────────────────────────────────────────────
+            // Anchos fijos eficientes
             sheet.setColumnWidth(0, 3000);
             sheet.setColumnWidth(1, 7000);
             sheet.setColumnWidth(2, 5000);
@@ -306,13 +290,12 @@ public class csv_export_service {
             sheet.setColumnWidth(obraTotalCol, 4500);
 
             wb.write(out);
-            return buildResponse(out.toByteArray(),
-                    String.format("contabilidad_detalle_%s_al_%s.xlsx", desde, hasta));
+            return buildResponse(out.toByteArray(), String.format("contabilidad_detalle_%s_al_%s.xlsx", desde, hasta));
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  ESTILOS
+    //  ESTILOS OPTIMIZADOS
     // ─────────────────────────────────────────────────────────────────────────
 
     private CellStyle headerStyle(XSSFWorkbook wb) {
@@ -321,7 +304,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -337,7 +320,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null)); // blanco sobre rojo
+        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -432,8 +415,8 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(hexToBytes(COLOR_SUBTOTAL_TEXT) != null
-                ? COLOR_SUBTOTAL_TEXT : COLOR_BLACK), null));
+        // 🔥 CORREGIDO: Eliminada la redundancia peligrosa de doble hexToBytes
+        font.setColor(new XSSFColor(hexToBytes(COLOR_SUBTOTAL_TEXT), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -506,7 +489,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 11);
         cs.setFont(font);
@@ -521,7 +504,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 11);
         cs.setFont(font);
@@ -579,8 +562,7 @@ public class csv_export_service {
 
     private ResponseEntity<byte[]> buildResponse(byte[] bytes, String filename) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", filename);
         headers.setContentLength(bytes.length);
         return ResponseEntity.ok().headers(headers).body(bytes);
