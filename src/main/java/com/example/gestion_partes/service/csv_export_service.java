@@ -22,24 +22,24 @@ public class csv_export_service {
     // ─────────────────────────────────────────────────────────────────────────
     //  COLORES
     // ─────────────────────────────────────────────────────────────────────────
-    private static final String COLOR_OBRA_BG = "FFFFFF";
-    private static final String COLOR_SUBTOTAL_BG = "DBEAFE";
-    private static final String COLOR_WEEKEND_BG = "FF0000";
-    private static final String COLOR_HEADER_BG = "1E3A8A";
-    private static final String COLOR_BAJA_BG = "84DCAE";
-    private static final String COLOR_VAC_BG = "EF75DE";
-    private static final String COLOR_PAT_BG = "A2D2E8";
+    private static final String COLOR_OBRA_BG      = "FFFFFF";
+    private static final String COLOR_SUBTOTAL_BG  = "DBEAFE";
+    private static final String COLOR_WEEKEND_BG   = "FF0000";
+    private static final String COLOR_HEADER_BG    = "FFFFFF"; // antes 1E3A8A
+    private static final String COLOR_BAJA_BG      = "84DCAE";
+    private static final String COLOR_VAC_BG       = "EF75DE";
+    private static final String COLOR_PAT_BG       = "A2D2E8";
     private static final String COLOR_SUBTOTAL_TEXT = "1D4ED8";
-    private static final String COLOR_WHITE = "FFFFFF";
-    private static final String COLOR_BLACK = "000000";
-    private static final String COLOR_TOTAL_TEXT = "1D4ED8";
-    private static final String COLOR_GRAN_TOTAL_BG = "1E3A8A";
+    private static final String COLOR_WHITE        = "FFFFFF";
+    private static final String COLOR_BLACK        = "000000";
+    private static final String COLOR_TOTAL_TEXT   = "1D4ED8";
+    private static final String COLOR_GRAN_TOTAL_BG = "FFFFFF"; // antes 1E3A8A
 
     // ─────────────────────────────────────────────────────────────────────────
     //  FESTIVOS NACIONALES FIJOS
     // ─────────────────────────────────────────────────────────────────────────
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
-            MonthDay.of(1, 1), MonthDay.of(1, 6), MonthDay.of(5, 1),
+            MonthDay.of(1, 1),  MonthDay.of(1, 6),  MonthDay.of(5, 1),
             MonthDay.of(8, 15), MonthDay.of(10, 12), MonthDay.of(11, 1),
             MonthDay.of(12, 6), MonthDay.of(12, 8), MonthDay.of(12, 25)
     );
@@ -56,13 +56,13 @@ public class csv_export_service {
             XSSFSheet sheet = wb.createSheet("Quincena");
             sheet.setDefaultColumnWidth(18);
 
-            CellStyle csHeader = headerStyle(wb);
-            CellStyle csObra = obraStyle(wb);
-            CellStyle csNormal = normalStyle(wb);
-            CellStyle csNumber = numberStyle(wb);
-            CellStyle csTotal = totalStyle(wb);
+            CellStyle csHeader  = headerStyle(wb);
+            CellStyle csObra    = obraStyle(wb);
+            CellStyle csNormal  = normalStyle(wb);
+            CellStyle csNumber  = numberStyle(wb);
+            CellStyle csTotal   = totalStyle(wb);
 
-            String[] cols = {"Obra", "Código", "Apellidos", "Nombre", "Horas Operario", "Total Obra"};
+            String[] cols = {"Obra","Código","Apellidos","Nombre","Horas Operario","Total Obra"};
             Row hRow = sheet.createRow(0);
             hRow.setHeightInPoints(20);
             for (int c = 0; c < cols.length; c++) {
@@ -79,7 +79,7 @@ public class csv_export_service {
 
             int rowIdx = 1;
             for (Map.Entry<String, List<quincena_dto>> entry : porObra.entrySet()) {
-                String obra = entry.getKey();
+                String obra      = entry.getKey();
                 List<quincena_dto> operarios = entry.getValue();
                 double totalObra = operarios.stream()
                         .mapToDouble(o -> o.getTotal_horas() != null ? o.getTotal_horas() : 0.0)
@@ -91,28 +91,20 @@ public class csv_export_service {
                     row.setHeightInPoints(16);
 
                     Cell cObra = row.createCell(0);
-                    if (i == 0) {
-                        cObra.setCellValue(obra);
-                        cObra.setCellStyle(csObra);
-                    } else {
-                        cObra.setCellStyle(csNormal);
-                    }
+                    if (i == 0) { cObra.setCellValue(obra); cObra.setCellStyle(csObra); }
+                    else         { cObra.setCellStyle(csNormal); }
 
-                    setCell(row, 1, safe(linea.getCodigo()), csNormal);
+                    setCell(row, 1, safe(linea.getCodigo()),    csNormal);
                     setCell(row, 2, safe(linea.getApellidos()), csNormal);
-                    setCell(row, 3, safe(linea.getNombre()), csNormal);
+                    setCell(row, 3, safe(linea.getNombre()),    csNormal);
 
                     Cell cHoras = row.createCell(4);
                     cHoras.setCellValue(linea.getTotal_horas() != null ? linea.getTotal_horas() : 0.0);
                     cHoras.setCellStyle(csNumber);
 
                     Cell cTotal = row.createCell(5);
-                    if (i == 0) {
-                        cTotal.setCellValue(totalObra);
-                        cTotal.setCellStyle(csTotal);
-                    } else {
-                        cTotal.setCellStyle(csNormal);
-                    }
+                    if (i == 0) { cTotal.setCellValue(totalObra); cTotal.setCellStyle(csTotal); }
+                    else         { cTotal.setCellStyle(csNormal); }
                 }
                 sheet.createRow(rowIdx++);
             }
@@ -148,24 +140,24 @@ public class csv_export_service {
             sheet.setDefaultColumnWidth(6);
             sheet.createFreezePane(0, 1);
 
-            CellStyle csHeader = headerStyle(wb);
-            CellStyle csHeaderWe = weekendHeaderStyle(wb);
-            CellStyle csObra = obraStyle(wb);
-            CellStyle csNormal = normalStyle(wb);
-            CellStyle csNumber = numberStyle(wb);
-            CellStyle csWeekend = weekendStyle(wb);
-            CellStyle csSubtotal = subtotalStyle(wb);
-            CellStyle csSubNum = subtotalNumberStyle(wb);
-            CellStyle csBaja = bajaStyle(wb);
-            CellStyle csVac = vacStyle(wb);
-            CellStyle csPat = paternidadStyle(wb);
-            CellStyle csTotalNum = totalNumStyle(wb);
-            CellStyle csGranTotal = granTotalStyle(wb);
+            CellStyle csHeader    = headerStyle(wb);
+            CellStyle csHeaderWe  = weekendHeaderStyle(wb);
+            CellStyle csObra      = obraStyle(wb);
+            CellStyle csNormal    = normalStyle(wb);
+            CellStyle csNumber    = numberStyle(wb);
+            CellStyle csWeekend   = weekendStyle(wb);
+            CellStyle csSubtotal  = subtotalStyle(wb);
+            CellStyle csSubNum    = subtotalNumberStyle(wb);
+            CellStyle csBaja      = bajaStyle(wb);
+            CellStyle csVac       = vacStyle(wb);
+            CellStyle csPat       = paternidadStyle(wb);
+            CellStyle csTotalNum  = totalNumStyle(wb);
+            CellStyle csGranTotal    = granTotalStyle(wb);
             CellStyle csGranTotalNum = granTotalNumStyle(wb);
-            CellStyle csQuincena = quincenaHeaderStyle(wb);
+            CellStyle csQuincena  = quincenaHeaderStyle(wb);
 
-            final int FIXED_COLS = 4;
-            final int totalCol = FIXED_COLS + diasRango.size();
+            final int FIXED_COLS  = 4;
+            final int totalCol    = FIXED_COLS + diasRango.size();
             final int obraTotalCol = totalCol + 1;
 
             Map<String, List<Map<String, Object>>> porObra = new LinkedHashMap<>();
@@ -176,7 +168,7 @@ public class csv_export_service {
 
             int rowIdx = 0;
             double granTotalPersonas = 0;
-            double granTotalObras = 0;
+            double granTotalObras    = 0;
 
             for (Map.Entry<String, List<Map<String, Object>>> entry : porObra.entrySet()) {
                 String obra = entry.getKey();
@@ -187,7 +179,7 @@ public class csv_export_service {
                 // ── Cabecera fila 1: letra día ────────────────────────────────
                 Row hRow = sheet.createRow(rowIdx++);
                 hRow.setHeightInPoints(18);
-                String[] fixedHeaders = {"Código", "Operario", "Categoría", "Obra"};
+                String[] fixedHeaders = {"Código","Operario","Categoría","Obra"};
                 for (int c = 0; c < fixedHeaders.length; c++) {
                     Cell cell = hRow.createCell(c);
                     cell.setCellValue(fixedHeaders[c]);
@@ -211,12 +203,8 @@ public class csv_export_service {
                 hRow2.setHeightInPoints(14);
                 for (int c = 0; c < fixedHeaders.length; c++) {
                     Cell cell = hRow2.createCell(c);
-                    if (c == 0) {
-                        cell.setCellValue(obra);
-                        cell.setCellStyle(csObra);
-                    } else {
-                        cell.setCellStyle(csHeader);
-                    }
+                    if (c == 0) { cell.setCellValue(obra); cell.setCellStyle(csObra); }
+                    else        { cell.setCellStyle(csHeader); }
                 }
                 for (int i = 0; i < diasRango.size(); i++) {
                     LocalDate dia = diasRango.get(i);
@@ -241,41 +229,34 @@ public class csv_export_service {
 
                     double totalPersona = fila.get("total_horas") instanceof Number
                             ? ((Number) fila.get("total_horas")).doubleValue() : 0.0;
-                    totalObra += totalPersona;
+                    totalObra        += totalPersona;
                     granTotalPersonas += totalPersona;
 
                     Row row = sheet.createRow(rowIdx++);
                     row.setHeightInPoints(16);
 
-                    setCell(row, 0, safe(fila.get("codigo")), csNormal);
+                    setCell(row, 0, safe(fila.get("codigo")),   csNormal);
                     setCell(row, 1, safe(fila.get("operario")), csNormal);
                     setCell(row, 2, safe(fila.getOrDefault("categoria_profesional", "-")), csNormal);
                     setCell(row, 3, obra, csNormal);
 
                     for (int i = 0; i < diasRango.size(); i++) {
                         LocalDate dia = diasRango.get(i);
-                        String iso = dia.toString();
+                        String iso     = dia.toString();
                         String ausencia = ausencias.get(iso);
-                        Cell cell = row.createCell(FIXED_COLS + i);
+                        Cell cell      = row.createCell(FIXED_COLS + i);
                         CellStyle base = isDiaRojo(dia) ? csWeekend : csNormal;
 
                         if ("BAJA".equals(ausencia)) {
-                            cell.setCellValue("B");
-                            cell.setCellStyle(csBaja);
+                            cell.setCellValue("B"); cell.setCellStyle(csBaja);
                         } else if ("VACACIONES".equals(ausencia)) {
-                            cell.setCellValue("V");
-                            cell.setCellStyle(csVac);
+                            cell.setCellValue("V"); cell.setCellStyle(csVac);
                         } else if ("PATERNIDAD".equals(ausencia)) {
-                            cell.setCellValue("P");
-                            cell.setCellStyle(csPat);
+                            cell.setCellValue("P"); cell.setCellStyle(csPat);
                         } else {
                             double h = horasDias.getOrDefault(dia, 0.0);
-                            if (h > 0) {
-                                cell.setCellValue(h);
-                                cell.setCellStyle(csNumber);
-                            } else {
-                                cell.setCellStyle(base);
-                            }
+                            if (h > 0) { cell.setCellValue(h); cell.setCellStyle(csNumber); }
+                            else       { cell.setCellStyle(base); }
                         }
                     }
 
@@ -293,9 +274,7 @@ public class csv_export_service {
                 Cell subLabel = subRow.createCell(0);
                 subLabel.setCellValue("Total " + obra);
                 subLabel.setCellStyle(csSubtotal);
-                for (int c = 1; c <= totalCol; c++) {
-                    subRow.createCell(c).setCellStyle(csSubtotal);
-                }
+                for (int c = 1; c <= totalCol; c++) subRow.createCell(c).setCellStyle(csSubtotal);
                 Cell subTotal = subRow.createCell(obraTotalCol);
                 subTotal.setCellValue(totalObra);
                 subTotal.setCellStyle(csSubNum);
@@ -309,9 +288,7 @@ public class csv_export_service {
             Cell gtLabel = gtRow.createCell(0);
             gtLabel.setCellValue("TOTAL HORAS");
             gtLabel.setCellStyle(csGranTotal);
-            for (int c = 1; c < totalCol; c++) {
-                gtRow.createCell(c).setCellStyle(csGranTotal);
-            }
+            for (int c = 1; c < totalCol; c++) gtRow.createCell(c).setCellStyle(csGranTotal);
             Cell gtPNum = gtRow.createCell(totalCol);
             gtPNum.setCellValue(granTotalPersonas);
             gtPNum.setCellStyle(csGranTotalNum);
@@ -324,10 +301,8 @@ public class csv_export_service {
             sheet.setColumnWidth(1, 7000);
             sheet.setColumnWidth(2, 5000);
             sheet.setColumnWidth(3, 6000);
-            for (int i = 0; i < diasRango.size(); i++) {
-                sheet.setColumnWidth(FIXED_COLS + i, 2200);
-            }
-            sheet.setColumnWidth(totalCol, 5500);
+            for (int i = 0; i < diasRango.size(); i++) sheet.setColumnWidth(FIXED_COLS + i, 2200);
+            sheet.setColumnWidth(totalCol,    5500);
             sheet.setColumnWidth(obraTotalCol, 4500);
 
             wb.write(out);
@@ -346,7 +321,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -362,7 +337,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null)); // blanco sobre rojo
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -372,17 +347,13 @@ public class csv_export_service {
         return cs;
     }
 
-    /**
-     * Estilo para la columna de quincena/mes en las cabeceras de días.
-     * Fondo blanco, texto negro en negrita.
-     */
     private CellStyle quincenaHeaderStyle(XSSFWorkbook wb) {
         XSSFCellStyle cs = wb.createCellStyle();
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_OBRA_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));  // ← negro
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -393,17 +364,13 @@ public class csv_export_service {
         return cs;
     }
 
-    /**
-     * Estilo para la celda del nombre de obra.
-     * Fondo blanco, texto negro en negrita.
-     */
     private CellStyle obraStyle(XSSFWorkbook wb) {
         XSSFCellStyle cs = wb.createCellStyle();
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_OBRA_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));  // ← negro
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -465,7 +432,8 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_SUBTOTAL_TEXT), null));
+        font.setColor(new XSSFColor(hexToBytes(hexToBytes(COLOR_SUBTOTAL_TEXT) != null
+                ? COLOR_SUBTOTAL_TEXT : COLOR_BLACK), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -493,12 +461,8 @@ public class csv_export_service {
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_BAJA_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
-        font.setBold(true);
-        font.setFontName("Arial");
-        font.setFontHeightInPoints((short) 10);
-        cs.setFont(font);
-        cs.setAlignment(HorizontalAlignment.CENTER);
-        applyBorder(cs);
+        font.setBold(true); font.setFontName("Arial"); font.setFontHeightInPoints((short) 10);
+        cs.setFont(font); cs.setAlignment(HorizontalAlignment.CENTER); applyBorder(cs);
         return cs;
     }
 
@@ -507,12 +471,8 @@ public class csv_export_service {
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_VAC_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
-        font.setBold(true);
-        font.setFontName("Arial");
-        font.setFontHeightInPoints((short) 10);
-        cs.setFont(font);
-        cs.setAlignment(HorizontalAlignment.CENTER);
-        applyBorder(cs);
+        font.setBold(true); font.setFontName("Arial"); font.setFontHeightInPoints((short) 10);
+        cs.setFont(font); cs.setAlignment(HorizontalAlignment.CENTER); applyBorder(cs);
         return cs;
     }
 
@@ -521,12 +481,8 @@ public class csv_export_service {
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_PAT_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
-        font.setBold(true);
-        font.setFontName("Arial");
-        font.setFontHeightInPoints((short) 10);
-        cs.setFont(font);
-        cs.setAlignment(HorizontalAlignment.CENTER);
-        applyBorder(cs);
+        font.setBold(true); font.setFontName("Arial"); font.setFontHeightInPoints((short) 10);
+        cs.setFont(font); cs.setAlignment(HorizontalAlignment.CENTER); applyBorder(cs);
         return cs;
     }
 
@@ -550,7 +506,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 11);
         cs.setFont(font);
@@ -565,7 +521,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null)); // texto negro
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 11);
         cs.setFont(font);
@@ -592,19 +548,17 @@ public class csv_export_service {
         cell.setCellStyle(style);
     }
 
-    private String safe(Object value) {
-        return value != null ? value.toString() : "";
-    }
+    private String safe(Object value) { return value != null ? value.toString() : ""; }
 
     private String diaSemanaLetra(LocalDate date) {
         return switch (date.getDayOfWeek()) {
-            case MONDAY -> "L";
-            case TUESDAY -> "M";
+            case MONDAY    -> "L";
+            case TUESDAY   -> "M";
             case WEDNESDAY -> "X";
-            case THURSDAY -> "J";
-            case FRIDAY -> "V";
-            case SATURDAY -> "S";
-            case SUNDAY -> "D";
+            case THURSDAY  -> "J";
+            case FRIDAY    -> "V";
+            case SATURDAY  -> "S";
+            case SUNDAY    -> "D";
         };
     }
 
