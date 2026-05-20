@@ -31,6 +31,7 @@ public class csv_export_service {
     private static final String COLOR_PAT_BG = "A2D2E8";
     private static final String COLOR_SUBTOTAL_TEXT = "1D4ED8";
     private static final String COLOR_WHITE = "FFFFFF";
+    private static final String COLOR_BLACK = "000000";
     private static final String COLOR_TOTAL_TEXT = "1D4ED8";
     private static final String COLOR_GRAN_TOTAL_BG = "1E3A8A";
 
@@ -127,16 +128,6 @@ public class csv_export_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     //  DETALLE (con días)
-    //
-    //  Estructura por obra:
-    //    fila A  → cabecera letra día  (L/M/X…)        repetida para cada obra
-    //    fila B  → cabecera dd/MM                       repetida para cada obra
-    //    fila C  → nombre de obra (fondo azul oscuro)
-    //    filas   → operarios: cols fijas + días + total persona (totalCol)
-    //    fila S  → "Total [obra]" + número en obraTotalCol (totalCol + 1)
-    //
-    //  Al final:
-    //    fila G → TOTAL HORAS: suma operarios en totalCol, suma obras en obraTotalCol
     // ─────────────────────────────────────────────────────────────────────────
     public ResponseEntity<byte[]> buildDetalleXlsx(
             List<Map<String, Object>> filas, LocalDate desde, LocalDate hasta) throws Exception {
@@ -144,7 +135,6 @@ public class csv_export_service {
         List<LocalDate> diasRango = desde.datesUntil(hasta.plusDays(1))
                 .collect(Collectors.toList());
 
-        // Calcular quincenaLabel una sola vez (igual para todas las obras)
         String mesNombre = desde.getMonth()
                 .getDisplayName(TextStyle.FULL, new Locale("es", "ES"));
         mesNombre = mesNombre.substring(0, 1).toUpperCase() + mesNombre.substring(1);
@@ -175,8 +165,8 @@ public class csv_export_service {
             CellStyle csQuincena = quincenaHeaderStyle(wb);
 
             final int FIXED_COLS = 4;
-            final int totalCol = FIXED_COLS + diasRango.size();  // total persona / quincena
-            final int obraTotalCol = totalCol + 1;                   // total obra
+            final int totalCol = FIXED_COLS + diasRango.size();
+            final int obraTotalCol = totalCol + 1;
 
             Map<String, List<Map<String, Object>>> porObra = new LinkedHashMap<>();
             for (Map<String, Object> fila : filas) {
@@ -292,7 +282,7 @@ public class csv_export_service {
                     Cell cTotalP = row.createCell(totalCol);
                     cTotalP.setCellValue(totalPersona);
                     cTotalP.setCellStyle(csTotalNum);
-                    row.createCell(obraTotalCol).setCellStyle(csNormal); // vacía
+                    row.createCell(obraTotalCol).setCellStyle(csNormal);
                 }
 
                 granTotalObras += totalObra;
@@ -337,7 +327,7 @@ public class csv_export_service {
             for (int i = 0; i < diasRango.size(); i++) {
                 sheet.setColumnWidth(FIXED_COLS + i, 2200);
             }
-            sheet.setColumnWidth(totalCol, 5500); // más ancho para el texto de quincena
+            sheet.setColumnWidth(totalCol, 5500);
             sheet.setColumnWidth(obraTotalCol, 4500);
 
             wb.write(out);
@@ -383,7 +373,8 @@ public class csv_export_service {
     }
 
     /**
-     * Estilo para la columna de quincena/mes en las cabeceras de días
+     * Estilo para la columna de quincena/mes en las cabeceras de días.
+     * Fondo blanco, texto negro en negrita.
      */
     private CellStyle quincenaHeaderStyle(XSSFWorkbook wb) {
         XSSFCellStyle cs = wb.createCellStyle();
@@ -391,7 +382,7 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));  // ← negro
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
@@ -402,17 +393,22 @@ public class csv_export_service {
         return cs;
     }
 
+    /**
+     * Estilo para la celda del nombre de obra.
+     * Fondo blanco, texto negro en negrita.
+     */
     private CellStyle obraStyle(XSSFWorkbook wb) {
         XSSFCellStyle cs = wb.createCellStyle();
         cs.setFillForegroundColor(new XSSFColor(hexToBytes(COLOR_OBRA_BG), null));
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        font.setColor(new XSSFColor(hexToBytes(COLOR_WHITE), null));
+        font.setColor(new XSSFColor(hexToBytes(COLOR_BLACK), null));  // ← negro
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
         cs.setFont(font);
         cs.setVerticalAlignment(VerticalAlignment.CENTER);
+        applyBorder(cs);
         return cs;
     }
 
