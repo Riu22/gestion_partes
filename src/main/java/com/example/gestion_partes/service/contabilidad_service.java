@@ -78,6 +78,9 @@ public class contabilidad_service {
             LocalDate hasta,
             List<Long> obraIds) {
 
+        // ── ¿Modo administración? (null = sin filtro de obras) ────────────────
+        boolean esAdministracion = (obraIds == null);
+
         Map<String, Map<String, Object>> mapaAgrupado = new LinkedHashMap<>();
 
         for (contabilidad_detalle_dto d : datos) {
@@ -132,43 +135,39 @@ public class contabilidad_service {
         Map<UUID, perfil> idAPerfil = new HashMap<>();
         codigoAPerfil.values().forEach(p -> idAPerfil.put(p.getId(), p));
 
-        // ── Inyectar operarios activos que no tienen ningún parte ────────────
-        //
-        //  Se crea una fila con obra = "" y horas_por_dia vacío para que el
-        //  frontend los muestre con todo en '-' pero aparezcan en la tabla
-        //  y en el filtro de operarios.
-        //
-        List<perfil> perfilesActivos = perfil_repo.findByActivoTrue()
-                .stream()
-                .filter(p -> p.getRol() == user_rol.OPERARIO
-                        || p.getRol() == user_rol.ENCARGADO)
-                .collect(Collectors.toList());
+        // ── Inyectar operarios activos sin partes (solo administración) ───────
+        if (esAdministracion) {
+            List<perfil> perfilesActivos = perfil_repo.findByActivoTrue()
+                    .stream()
+                    .filter(p -> p.getRol() == user_rol.OPERARIO
+                            || p.getRol() == user_rol.ENCARGADO)
+                    .collect(Collectors.toList());
 
-        for (perfil p : perfilesActivos) {
-            if (p.getCodigo() == null) continue;
+            for (perfil p : perfilesActivos) {
+                if (p.getCodigo() == null) continue;
 
-            // ¿Ya tiene al menos una fila en el mapa (con partes)?
-            final String codigo = p.getCodigo();
-            boolean tieneFila = mapaAgrupado.keySet().stream()
-                    .anyMatch(k -> k.startsWith(codigo + "|"));
+                final String codigo = p.getCodigo();
+                boolean tieneFila = mapaAgrupado.keySet().stream()
+                        .anyMatch(k -> k.startsWith(codigo + "|"));
 
-            if (!tieneFila) {
-                String claveSinParte = codigo + "|__SIN_PARTE__";
-                String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
-                String nom = p.getName()      != null ? p.getName()                    : "S/N";
-                String operarioFull = aps.isEmpty() ? nom : aps + ", " + nom;
+                if (!tieneFila) {
+                    String claveSinParte = codigo + "|__SIN_PARTE__";
+                    String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
+                    String nom = p.getName()      != null ? p.getName()                    : "S/N";
+                    String operarioFull = aps.isEmpty() ? nom : aps + ", " + nom;
 
-                Map<String, Object> fila = new LinkedHashMap<>();
-                fila.put("codigo",               codigo);
-                fila.put("operario",             operarioFull);
-                fila.put("obra",                 "");   // sin obra asignada en ese periodo
-                fila.put("categoria_profesional",
-                        p.getGrupo_profesional() != null
-                                ? p.getGrupo_profesional() : "No asignado");
-                fila.put("horas_por_dia",        new HashMap<LocalDate, Double>());
-                fila.put("total_horas",          0.0);
-                fila.put("ausencias_por_dia",    new LinkedHashMap<String, String>());
-                mapaAgrupado.put(claveSinParte, fila);
+                    Map<String, Object> fila = new LinkedHashMap<>();
+                    fila.put("codigo",               codigo);
+                    fila.put("operario",             operarioFull);
+                    fila.put("obra",                 "");
+                    fila.put("categoria_profesional",
+                            p.getGrupo_profesional() != null
+                                    ? p.getGrupo_profesional() : "No asignado");
+                    fila.put("horas_por_dia",        new HashMap<LocalDate, Double>());
+                    fila.put("total_horas",          0.0);
+                    fila.put("ausencias_por_dia",    new LinkedHashMap<String, String>());
+                    mapaAgrupado.put(claveSinParte, fila);
+                }
             }
         }
 
@@ -179,32 +178,34 @@ public class contabilidad_service {
                         .stream()
                         .collect(Collectors.groupingBy(Ausencia::getPerfilId));
 
-        // ── Inyectar filas sintéticas LUM para operarios con ausencia ─────────
-        for (UUID perfilId : ausenciasPorPerfil.keySet()) {
-            perfil p = idAPerfil.get(perfilId);
-            if (p == null || p.getCodigo() == null) continue;
+        // ── Inyectar filas sintéticas LUM para operarios con ausencia
+        //    (solo administración) ────────────────────────────────────────────
+        if (esAdministracion) {
+            for (UUID perfilId : ausenciasPorPerfil.keySet()) {
+                perfil p = idAPerfil.get(perfilId);
+                if (p == null || p.getCodigo() == null) continue;
 
-            String claveLum = p.getCodigo() + "|" + OBRA_LUM;
-            if (!mapaAgrupado.containsKey(claveLum)) {
-                String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
-                String nom = p.getName()      != null ? p.getName()                    : "S/N";
-                String operarioFull = aps.isEmpty() ? nom : aps + ", " + nom;
+                String claveLum = p.getCodigo() + "|" + OBRA_LUM;
+                if (!mapaAgrupado.containsKey(claveLum)) {
+                    String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
+                    String nom = p.getName()      != null ? p.getName()                    : "S/N";
+                    String operarioFull = aps.isEmpty() ? nom : aps + ", " + nom;
 
-                Map<String, Object> filaLum = new LinkedHashMap<>();
-                filaLum.put("codigo",               p.getCodigo());
-                filaLum.put("operario",             operarioFull);
-                filaLum.put("obra",                 OBRA_LUM);
-                filaLum.put("categoria_profesional",
-                        p.getGrupo_profesional() != null
-                                ? p.getGrupo_profesional() : "No asignado");
-                filaLum.put("horas_por_dia",        new HashMap<LocalDate, Double>());
-                filaLum.put("total_horas",          0.0);
-                mapaAgrupado.put(claveLum, filaLum);
+                    Map<String, Object> filaLum = new LinkedHashMap<>();
+                    filaLum.put("codigo",               p.getCodigo());
+                    filaLum.put("operario",             operarioFull);
+                    filaLum.put("obra",                 OBRA_LUM);
+                    filaLum.put("categoria_profesional",
+                            p.getGrupo_profesional() != null
+                                    ? p.getGrupo_profesional() : "No asignado");
+                    filaLum.put("horas_por_dia",        new HashMap<LocalDate, Double>());
+                    filaLum.put("total_horas",          0.0);
+                    mapaAgrupado.put(claveLum, filaLum);
+                }
+
+                // Eliminar la sintética vacía si ya tiene fila LUM
+                mapaAgrupado.remove(p.getCodigo() + "|__SIN_PARTE__");
             }
-
-            // Si el operario tenía fila "__SIN_PARTE__" y ahora tiene fila LUM,
-            // eliminamos la sintética vacía para no duplicar
-            mapaAgrupado.remove(p.getCodigo() + "|__SIN_PARTE__");
         }
 
         // ── Rellenar ausencias_por_dia solo en filas LUM (días laborables) ────
@@ -212,8 +213,6 @@ public class contabilidad_service {
             String obraFila = (String) fila.get("obra");
             boolean esLum   = OBRA_LUM.equals(obraFila);
 
-            // Solo inicializar si aún no tiene la clave (las filas __SIN_PARTE__
-            // ya la llevan puesta desde su creación)
             fila.putIfAbsent("ausencias_por_dia", new LinkedHashMap<String, String>());
 
             if (esLum) {
