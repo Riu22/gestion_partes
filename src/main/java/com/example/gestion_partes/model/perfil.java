@@ -35,7 +35,7 @@ public class perfil {
     @Column(name = "grupo_profesional")
     String grupo_profesional;
 
-    @Column(name = "creado_el")
+    @Column(name = "creado_el", insertable = true, updatable = true)
     private java.time.OffsetDateTime creadoEl;
 
     @ManyToOne(fetch = FetchType.LAZY)
