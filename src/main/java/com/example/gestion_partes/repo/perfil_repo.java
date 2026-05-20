@@ -11,4 +11,6 @@ public interface perfil_repo extends JpaRepository<perfil, UUID> {
     List<perfil> findAllByOrderByActivoDescApellidosAscNameAsc();
     List<perfil> findByJefeDirecto_Id(UUID jefeId);
     List<perfil> findByActivoTrueAndRolIn(List<user_rol> roles);
+
+    List<perfil> findByActivoTrue();
 }
