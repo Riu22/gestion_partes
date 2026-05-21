@@ -30,10 +30,7 @@ public class asignacion_service {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "ADMINISTRACION y GESTION tienen visibilidad total");
         }
-        if (perfil.getRol() == user_rol.OPERARIO) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Los operarios se asignan a un encargado, no directamente a una obra");
-        }
+
         if (asignacion_obra_repo.existsByPerfilIdAndObraId(perfilId, obraId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este perfil ya está asignado a esta obra");
         }
@@ -58,17 +55,21 @@ public class asignacion_service {
     // --- GESTIÓN DE EQUIPO (SUBORDINADOS) ---
 
     // Asigna un operario a un encargado
-    public perfil asignar_operario_a_encargado(UUID operarioId, UUID encargadoId) {
-        perfil operario = perfil_repo.findById(operarioId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Operario no encontrado"));
-        perfil encargado = perfil_repo.findById(encargadoId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Encargado no encontrado"));
+    // Método unificado que reemplaza a asignar_operario_a_encargado y asignar_encargado_a_jefe
+    public perfil asignar_subordinado(UUID subordinadoId, UUID jefeId) {
+        perfil subordinado = perfil_repo.findById(subordinadoId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+        perfil jefe = perfil_repo.findById(jefeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Jefe no encontrado"));
 
-        if (operario.getRol() != user_rol.OPERARIO) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El perfil no es OPERARIO");
+        // Solo ADMINISTRACION/GESTION no pueden tener jefe directo
+        if (subordinado.getRol() == user_rol.ADMINISTRACION || subordinado.getRol() == user_rol.GESTION) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ADMINISTRACION y GESTION no pueden tener jefe directo");
         }
-        operario.setJefeDirecto(encargado);
-        return perfil_repo.save(operario);
+
+        subordinado.setJefeDirecto(jefe);
+        return perfil_repo.save(subordinado);
     }
 
     // Asigna un encargado a un jefe de obra
@@ -123,5 +124,42 @@ public class asignacion_service {
 
     public List<asignacion_obra> get_obras_de_perfil(UUID perfilId) {
         return asignacion_obra_repo.findByPerfilId(perfilId);
+    }
+
+    public void asignar_obras_batch(UUID perfilId, List<Long> obraIds) {
+        perfil perfil = perfil_repo.findById(perfilId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
+
+        if (perfil.getRol() == user_rol.ADMINISTRACION || perfil.getRol() == user_rol.GESTION) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ADMINISTRACION y GESTION tienen visibilidad total");
+        }
+
+        List<asignacion_obra> nuevas = obraIds.stream()
+                .filter(obraId -> !asignacion_obra_repo.existsByPerfilIdAndObraId(perfilId, obraId))
+                .map(obraId -> obra_repo.findById(obraId)
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND, "Obra no encontrada: " + obraId)))
+                .map(obra -> new asignacion_obra(perfil, obra))
+                .toList();
+
+        asignacion_obra_repo.saveAll(nuevas);
+    }
+
+    public void asignar_subordinados_batch(UUID jefeId, List<UUID> subordinadoIds) {
+        perfil jefe = perfil_repo.findById(jefeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Jefe no encontrado"));
+
+        List<perfil> subordinados = subordinadoIds.stream()
+                .map(id -> perfil_repo.findById(id)
+                        .orElseThrow(() -> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND, "Perfil no encontrado: " + id)))
+                .filter(p -> p.getRol() != user_rol.ADMINISTRACION && p.getRol() != user_rol.GESTION)
+                .toList();
+
+        for (perfil sub : subordinados) {
+            sub.setJefeDirecto(jefe);
+        }
+        perfil_repo.saveAll(subordinados);
     }
 }

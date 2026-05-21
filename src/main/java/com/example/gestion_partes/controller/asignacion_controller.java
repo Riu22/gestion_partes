@@ -29,12 +29,12 @@ public class asignacion_controller {
     }
 
     // Asignar operario a su encargado
-    @PutMapping("/asignar_operario/{operarioId}/{encargadoId}")
+    @PutMapping("/asignar_subordinado/{subordinadoId}/{jefeId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
-    public ResponseEntity<perfil> asignar_operario(
-            @PathVariable UUID operarioId,
-            @PathVariable UUID encargadoId) {
-        return ResponseEntity.ok(asignacion_service.asignar_operario_a_encargado(operarioId, encargadoId));
+    public ResponseEntity<perfil> asignar_subordinado(
+            @PathVariable UUID subordinadoId,
+            @PathVariable UUID jefeId) {
+        return ResponseEntity.ok(asignacion_service.asignar_subordinado(subordinadoId, jefeId));
     }
 
     // Asignar encargado a su jefe de obra
@@ -90,5 +90,23 @@ public class asignacion_controller {
     public ResponseEntity<List<asignacion_obra>> get_mis_obras(Authentication auth) {
         UUID id = UUID.fromString(auth.getName());
         return ResponseEntity.ok(asignacion_service.get_mis_obras(id));
+    }
+
+    @PostMapping("/asignar_obras_batch/{perfilId}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<Void> asignar_obras_batch(
+            @PathVariable UUID perfilId,
+            @RequestBody List<Long> obraIds) {
+        asignacion_service.asignar_obras_batch(perfilId, obraIds);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/asignar_subordinados_batch/{jefeId}")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<Void> asignar_subordinados_batch(
+            @PathVariable UUID jefeId,
+            @RequestBody List<UUID> subordinadoIds) {
+        asignacion_service.asignar_subordinados_batch(jefeId, subordinadoIds);
+        return ResponseEntity.ok().build();
     }
 }
