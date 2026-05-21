@@ -65,6 +65,8 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
         SELECT a.obra.id FROM asignacion_obra a
         WHERE a.perfil.id = :perfilId
     )
+    OR p.perfil.jefeDirecto.id = :perfilId
+    OR p.perfil.jefeDirecto.jefeDirecto.id = :perfilId
 """)
     List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
 
