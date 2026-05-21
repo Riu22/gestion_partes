@@ -30,7 +30,6 @@ public class user_controller {
         // Convertimos el String del sub a UUID
         UUID userId = UUID.fromString(authentication.getName());
 
-        System.out.println(">>> Buscando perfil por ID: " + userId);
 
         return ResponseEntity.ok(perfil_repo.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,

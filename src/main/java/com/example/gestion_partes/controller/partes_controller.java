@@ -42,7 +42,6 @@ public class partes_controller {
     public ResponseEntity<?> create_parte(
             @RequestBody partes_dto dto,
             Authentication auth) {
-        System.out.println("DEBUG: Recibiendo nombre_firmado: " + dto.nombre_firmado());
         try {
             return ResponseEntity.ok(partes_service.create_parte(dto, auth.getName()));
         } catch (RuntimeException e) {
