@@ -60,16 +60,16 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
 
     @Query("""
     SELECT DISTINCT p FROM partes_trabajo p
-    WHERE p.perfil.id = :perfilId
-    OR p.obra.id IN (
-        SELECT a.obra.id FROM asignacion_obra a
-        WHERE a.perfil.id = :perfilId
-    )
-    OR p.perfil.jefeDirecto.id = :perfilId
-    OR p.perfil.jefeDirecto.jefeDirecto.id = :perfilId
+    LEFT JOIN p.perfil pr
+    LEFT JOIN pr.jefeDirecto jd1
+    LEFT JOIN jd1.jefeDirecto jd2
+    LEFT JOIN asignacion_obra a ON a.obra.id = p.obra.id AND a.perfil.id = :perfilId
+    WHERE pr.id = :perfilId
+       OR a.obra.id IS NOT NULL
+       OR jd1.id = :perfilId
+       OR jd2.id = :perfilId
 """)
     List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
-
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.obra.id IN :obraIds AND " +
             "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +

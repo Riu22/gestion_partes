@@ -177,14 +177,12 @@ INSERT INTO public.perfiles (
 VALUES (
            new.id,
            new.email,
-           -- Hemos cambiado first_name/last_name para usar directamente los nombres de tu modelo
            COALESCE(new.raw_user_meta_data->>'nombre', ''),
            COALESCE(new.raw_user_meta_data->>'apellidos', ''),
            COALESCE(new.raw_user_meta_data->>'rol', 'OPERARIO')::public.usuario_rol,
            true,
            COALESCE(new.raw_user_meta_data->>'especialidad', 'ELECTRICIDAD'),
            new.raw_user_meta_data->>'codigo',
-           -- Convertimos a booleano, si es nulo ponemos false
            COALESCE((new.raw_user_meta_data->>'postventa')::boolean, false),
            new.raw_user_meta_data->>'grupo_profesional'
        );
