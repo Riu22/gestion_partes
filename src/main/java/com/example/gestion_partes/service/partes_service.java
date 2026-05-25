@@ -155,12 +155,16 @@ public class partes_service {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Perfil no encontrado"));
 
+        LocalDate desde = LocalDate.now().minusDays(30);
+
         if (usuario.getRol() == user_rol.ADMINISTRACION
                 || usuario.getRol() == user_rol.GESTION) {
-            return partes_trabajo_repo.findAll();
+            return partes_trabajo_repo
+                    .findByFechaGreaterThanEqualOrderByFechaDesc(desde);
         }
 
-        return partes_trabajo_repo.findPartesVisiblesParaPerfil(usuario.getId());
+        return partes_trabajo_repo
+                .findPartesVisiblesParaPerfilDesde(usuario.getId(), desde);
     }
 
     // ─── Eliminar parte ───────────────────────────────────────────────────────

@@ -58,18 +58,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
-    @Query("""
-    SELECT DISTINCT p FROM partes_trabajo p
-    LEFT JOIN p.perfil pr
-    LEFT JOIN pr.jefeDirecto jd1
-    LEFT JOIN jd1.jefeDirecto jd2
-    LEFT JOIN asignacion_obra a ON a.obra.id = p.obra.id AND a.perfil.id = :perfilId
-    WHERE pr.id = :perfilId
-       OR a.obra.id IS NOT NULL
-       OR jd1.id = :perfilId
-       OR jd2.id = :perfilId
-""")
-    List<partes_trabajo> findPartesVisiblesParaPerfil(@Param("perfilId") UUID perfilId);
+
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.obra.id IN :obraIds AND " +
             "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +
@@ -133,5 +122,28 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
     List<Object[]> findHorasPorPerfilYFecha(
             @Param("inicio") LocalDate inicio,
             @Param("fin") LocalDate fin
+    );
+
+    // Admin/Gestión — últimos N días
+    List<partes_trabajo> findByFechaGreaterThanEqualOrderByFechaDesc(LocalDate desde);
+
+    // Visibilidad jerárquica con filtro de fecha — misma lógica que findPartesVisiblesParaPerfil
+    @Query("""
+    SELECT DISTINCT p FROM partes_trabajo p
+    LEFT JOIN p.perfil pr
+    LEFT JOIN pr.jefeDirecto jd1
+    LEFT JOIN jd1.jefeDirecto jd2
+    LEFT JOIN asignacion_obra a ON a.obra.id = p.obra.id AND a.perfil.id = :perfilId
+    WHERE p.fecha >= :desde
+    AND (
+        pr.id = :perfilId
+        OR a.obra.id IS NOT NULL
+        OR jd1.id = :perfilId
+        OR jd2.id = :perfilId
+    )
+""")
+    List<partes_trabajo> findPartesVisiblesParaPerfilDesde(
+            @Param("perfilId") UUID perfilId,
+            @Param("desde") LocalDate desde
     );
 }
