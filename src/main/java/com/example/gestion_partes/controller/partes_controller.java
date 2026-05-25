@@ -227,4 +227,22 @@ public class partes_controller {
         return ResponseEntity.ok(
                 parte_jefe_service.get_resumen_mensual_por_usuario(anio, mes));
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<partes_dto> getById(@PathVariable Long id) {
+        return partes_trabajo_repo.findById(id)
+                .map(parte -> new partes_dto(
+                        parte.getObra() != null ? parte.getObra().getId() : null,
+                        parte.getPerfil() != null ? parte.getPerfil().getId() : null,
+                        parte.getFecha(),
+                        parte.getDescripcion(),
+                        parte.getHoras_normales(),
+                        parte.getHoras_extra(),
+                        parte.getEspecialidad(),
+                        parte.getFirma_url(),
+                        parte.getNombre_firmado()
+                ))
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new RuntimeException("Parte no encontrado"));
+    }
 }

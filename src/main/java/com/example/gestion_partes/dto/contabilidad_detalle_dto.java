@@ -11,4 +11,5 @@ public interface contabilidad_detalle_dto {
     LocalDate getFecha();
     Double getHoras_totales();
     String getEspecialidad();
+    Long getParteId();
 }

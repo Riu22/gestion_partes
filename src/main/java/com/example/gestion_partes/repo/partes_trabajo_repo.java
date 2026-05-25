@@ -79,7 +79,8 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("obraIds") List<Long> obraIds,
             @Param("operario") String operario,
             @Param("especialidad") String especialidad);
-    @Query(value = "SELECT p.codigo as codigo, " +
+    @Query(value = "SELECT pt.id as parteId, " +
+            "p.codigo as codigo, " +
             "p.nombre as nombre, " +
             "p.apellidos as apellidos, " +
             "p.grupo_profesional as grupo_profesional, " +
@@ -98,7 +99,8 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
-    @Query(value = "SELECT p.codigo as codigo, " +
+    @Query(value = "SELECT pt.id as parteId, " +
+            "p.codigo as codigo, " +
             "p.nombre as nombre, " +
             "p.apellidos as apellidos, " +
             "p.grupo_profesional as grupo_profesional, " +
@@ -119,7 +121,6 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta,
             @Param("obraIds") List<Long> obraIds
     );
-
     @Query("SELECT MIN(p.fecha) FROM partes_trabajo p")
     Optional<LocalDate> findFechaMasAntigua();
 
