@@ -2,6 +2,7 @@ package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.dto.create_user_dto;
 import com.example.gestion_partes.dto.update_user_dto;
+import com.example.gestion_partes.model.especialidad;
 import com.example.gestion_partes.repo.perfil_repo;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,12 +13,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import com.example.gestion_partes.model.perfil;
 import org.springframework.web.client.RestTemplate;
@@ -25,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class user_service {
+
     @Value("${supabase.url}")
     private String supabase_url;
 
@@ -49,6 +48,11 @@ public class user_service {
         if (datosNuevos.activo() != null) perfilExistente.setActivo(datosNuevos.activo());
         if (datosNuevos.codigo() != null) perfilExistente.setCodigo(datosNuevos.codigo());
         if (datosNuevos.postventa() != null) perfilExistente.setPostventa(datosNuevos.postventa());
+        if (datosNuevos.especialidad() != null) {
+            perfilExistente.setEspecialidad(
+                    especialidad.valueOf(datosNuevos.especialidad().toUpperCase())
+            );
+        }
         if (datosNuevos.grupo_profesional() != null) perfilExistente.setGrupo_profesional(datosNuevos.grupo_profesional());
         perfilExistente.setCreadoEl(OffsetDateTime.now());
         return user_repo.save(perfilExistente);
@@ -61,9 +65,7 @@ public class user_service {
         headers.set("apikey", service_key);
         headers.set("Authorization", "Bearer " + service_key);
 
-        // 1. Preparar metadatos (Enviamos TODO al trigger de la base de datos)
         Map<String, Object> metadata = new HashMap<>();
-
         metadata.put("nombre", new_user.name());
         metadata.put("apellidos", new_user.apellidos());
         metadata.put("rol", new_user.rol().toString());
@@ -83,20 +85,16 @@ public class user_service {
             metadata.put("grupo_profesional", new_user.grupo_profesional());
         }
 
-        // 2. Construir el cuerpo de la petición
         Map<String, Object> body = new HashMap<>();
         body.put("email", new_user.email());
         body.put("password", new_user.password());
         body.put("email_confirm", true);
-        body.put("user_metadata", metadata); // Todo va aquí dentro
+        body.put("user_metadata", metadata);
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
 
         try {
-            // 3. Enviar a Supabase Auth.
-            // Esto crea el usuario y dispara el Trigger automáticamente.
             rest_template.postForEntity(url, request, String.class);
-
         } catch (Exception e) {
             throw new RuntimeException("Error al crear usuario en Supabase: " + e.getMessage());
         }

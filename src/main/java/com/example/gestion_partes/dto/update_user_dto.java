@@ -8,6 +8,7 @@ public record update_user_dto(
         user_rol rol,
         Boolean activo,
         String codigo,
+        String especialidad,
         Boolean postventa,
         String grupo_profesional
 )

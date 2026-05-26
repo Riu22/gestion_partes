@@ -98,8 +98,19 @@ public class ausencias_service {
         Map<String, Object> resultado = new LinkedHashMap<>();
 
         operarios.stream()
-                .sorted(Comparator.comparing(p -> p.getApellidos() + " " + p.getName()))
-                .forEach(p -> {
+                .sorted(Comparator
+                        .comparing((perfil p) -> {
+                            Map<LocalDate, Double> horas = horasPorPerfilFecha
+                                    .getOrDefault(p.getId(), Collections.emptyMap());
+                            LocalDate inicioPerfil = p.getCreadoEl() != null
+                                    ? p.getCreadoEl().toLocalDate() : fin;
+                            return diasLaborablesEntre(inicioPerfil, fin).stream()
+                                    .filter(d -> !horas.containsKey(d) ||
+                                            (horas.containsKey(d) && horas.get(d) < 8.0))
+                                    .min(Comparator.naturalOrder())
+                                    .orElse(LocalDate.MAX);
+                        })
+                        .thenComparing(p -> p.getApellidos() + " " + p.getName()))                .forEach(p -> {
                     // Rango específico de este perfil desde su fecha de creación
                     LocalDate inicioPerfil = p.getCreadoEl() != null
                             ? p.getCreadoEl().toLocalDate()
@@ -159,7 +170,7 @@ public class ausencias_service {
                     if (!diasSin.isEmpty() || !diasIncompletos.isEmpty()
                             || !ausenciasActivas.isEmpty()) {
                         Map<String, Object> info = new LinkedHashMap<>();
-                        info.put("nombre", p.getName() + " " + p.getApellidos());
+                        info.put("nombre", p.getApellidos() + " " + p.getName());
                         info.put("ausenciasActivas", ausenciasActivas);
                         info.put("diasSin", diasSin);
                         info.put("totalSin", diasSin.size());
