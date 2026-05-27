@@ -103,7 +103,7 @@ public class csv_export_service {
                     if (i == 0) { cTotal.setCellValue(totalObra); cTotal.setCellStyle(csTotal); }
                     else         { cTotal.setCellStyle(csNormal); }
                 }
-                rowIdx++; // Deja fila en blanco de forma limpia entre obras
+                rowIdx++;
             }
 
             for (int c = 0; c < 4; c++) sheet.autoSizeColumn(c);
@@ -168,7 +168,6 @@ public class csv_export_service {
                 String obra = entry.getKey();
                 List<Map<String, Object>> operarios = new ArrayList<>(entry.getValue());
 
-                // Optimización: Ordenación alfabética in-place eficiente
                 operarios.sort(Comparator.comparing(f -> f.getOrDefault("operario", "").toString().toLowerCase()));
 
                 // ── Cabecera fila 1: letra día ──
@@ -209,12 +208,13 @@ public class csv_export_service {
 
                 for (Map<String, Object> fila : operarios) {
                     @SuppressWarnings("unchecked")
-                    Map<LocalDate, Double> horasDias = (Map<LocalDate, Double>) fila.getOrDefault("horas_por_dia", Map.of());
+                    Map<String, Object> horasDias = (Map<String, Object>) fila.getOrDefault("horas_por_dia", Map.of());
                     @SuppressWarnings("unchecked")
                     Map<String, String> ausencias = (Map<String, String>) fila.getOrDefault("ausencias_por_dia", Map.of());
 
-                    double totalPersona = fila.get("total_horas") instanceof Number ? ((Number) fila.get("total_horas")).doubleValue() : 0.0;
-                    totalObra        += totalPersona;
+                    double totalPersona = fila.get("total_horas") instanceof Number
+                            ? ((Number) fila.get("total_horas")).doubleValue() : 0.0;
+                    totalObra         += totalPersona;
                     granTotalPersonas += totalPersona;
 
                     Row row = sheet.createRow(rowIdx++);
@@ -227,9 +227,10 @@ public class csv_export_service {
 
                     for (int i = 0; i < diasRango.size(); i++) {
                         LocalDate dia = diasRango.get(i);
-                        String ausencia = ausencias.get(dia.toString());
-                        Cell cell      = row.createCell(FIXED_COLS + i);
-                        CellStyle base = isDiaRojo(dia) ? csWeekend : csNormal;
+                        String fechaStr = dia.toString(); // "2026-05-04"
+                        String ausencia = ausencias.get(fechaStr);
+                        Cell cell       = row.createCell(FIXED_COLS + i);
+                        CellStyle base  = isDiaRojo(dia) ? csWeekend : csNormal;
 
                         if ("BAJA".equals(ausencia)) {
                             cell.setCellValue("B"); cell.setCellStyle(csBaja);
@@ -238,7 +239,15 @@ public class csv_export_service {
                         } else if ("PATERNIDAD".equals(ausencia)) {
                             cell.setCellValue("P"); cell.setCellStyle(csPat);
                         } else {
-                            double h = horasDias.getOrDefault(dia, 0.0);
+                            // horas_por_dia es Map<String, Map<String,Object>> con {horas, parte_id, link}
+                            double h = 0.0;
+                            Object entrada = horasDias.get(fechaStr);
+                            if (entrada instanceof Map) {
+                                Object horasObj = ((Map<?, ?>) entrada).get("horas");
+                                if (horasObj instanceof Number) h = ((Number) horasObj).doubleValue();
+                            } else if (entrada instanceof Number) {
+                                h = ((Number) entrada).doubleValue();
+                            }
                             if (h > 0) { cell.setCellValue(h); cell.setCellStyle(csNumber); }
                             else       { cell.setCellStyle(base); }
                         }
@@ -280,7 +289,6 @@ public class csv_export_service {
             gtONum.setCellValue(granTotalObras);
             gtONum.setCellStyle(csGranTotalNum);
 
-            // Anchos fijos eficientes
             sheet.setColumnWidth(0, 3000);
             sheet.setColumnWidth(1, 7000);
             sheet.setColumnWidth(2, 5000);
@@ -295,7 +303,7 @@ public class csv_export_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  ESTILOS OPTIMIZADOS
+    //  ESTILOS
     // ─────────────────────────────────────────────────────────────────────────
 
     private CellStyle headerStyle(XSSFWorkbook wb) {
@@ -415,7 +423,6 @@ public class csv_export_service {
         cs.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         XSSFFont font = wb.createFont();
         font.setBold(true);
-        // 🔥 CORREGIDO: Eliminada la redundancia peligrosa de doble hexToBytes
         font.setColor(new XSSFColor(hexToBytes(COLOR_SUBTOTAL_TEXT), null));
         font.setFontName("Arial");
         font.setFontHeightInPoints((short) 10);
