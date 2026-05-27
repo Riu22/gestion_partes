@@ -267,17 +267,7 @@ public class pdf_service {
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
 
-        Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
-        partes.stream()
-                .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
-                .forEach(p -> porObra
-                        .computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>())
-                        .add(p));
-
-        for (List<partes_trabajo> partesObra : porObra.values()) {
-            String nombreObra = partesObra.get(0).getObra().getNombre();
-            agregarGrupoAlDocumento(doc, nombreObra, especialidad, partesObra, evento);
-        }
+        agregarGrupoAlDocumento(doc, nombreOp, especialidad, partes, evento);
 
         doc.close();
         return baos.toByteArray();

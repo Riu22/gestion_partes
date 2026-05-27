@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class asignacion_service {
@@ -161,5 +162,12 @@ public class asignacion_service {
             sub.setJefeDirecto(jefe);
         }
         perfil_repo.saveAll(subordinados);
+    }
+
+    public List<Long> getObrasDeJefe(UUID jefeId) {
+        return get_mis_obras(jefeId)
+                .stream()
+                .map(a -> a.getObra().getId())
+                .collect(Collectors.toList());
     }
 }
