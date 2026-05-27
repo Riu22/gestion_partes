@@ -18,7 +18,6 @@ public class FechasPermitidasCleanupJob {
 
     //@Scheduled(cron = "0 5 0 * * *", zone = "Europe/Madrid") // cada día a las 00:05
     @Scheduled(fixedDelay = 5000)
-    @Transactional
     public void eliminarFechasConParteCompleto() {
         try {
             int eliminadas = fechaPermitidaRepo.eliminarFechasConParteCompleto();
