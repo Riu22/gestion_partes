@@ -32,7 +32,8 @@ public interface FechaPermitidaRepo extends JpaRepository<FechaPermitida, Long> 
         SELECT 1 FROM partes_trabajo pt
         WHERE pt.usuario_id = fp.perfil_id
           AND pt.fecha = fp.fecha
-          AND (pt.horas_normales + pt.horas_extra) >= 8
+        GROUP BY pt.usuario_id, pt.fecha
+        HAVING SUM(COALESCE(pt.horas_normales, 0) + COALESCE(pt.horas_extra, 0)) >= 8
     )
     AND fp.fecha < CURRENT_DATE
     """, nativeQuery = true)
