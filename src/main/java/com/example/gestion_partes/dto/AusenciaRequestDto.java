@@ -9,5 +9,6 @@ public record AusenciaRequestDto(
         AusenciaTipo tipo,
         LocalDate fechaInicio,
         LocalDate fechaFin,
-        String observaciones
+        String observaciones,
+        Long obraId
 ) {}

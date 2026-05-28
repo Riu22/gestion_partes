@@ -19,6 +19,9 @@ public class Ausencia {
     @Column(name = "perfil_id", nullable = false)
     private UUID perfilId;
 
+    @Column(name = "obra_id")
+    private Long obraId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
@@ -64,4 +67,12 @@ public class Ausencia {
     public void setFechaFin(LocalDate fechaFin) { this.fechaFin = fechaFin; }
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
     public void setCreadoEl(OffsetDateTime creadoEl) { this.creadoEl = creadoEl; }
+
+    public Long getObraId() {
+        return obraId;
+    }
+
+    public void setObraId(Long obraId) {
+        this.obraId = obraId;
+    }
 }

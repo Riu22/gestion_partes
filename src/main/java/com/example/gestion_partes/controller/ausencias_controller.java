@@ -39,7 +39,8 @@ public class ausencias_controller {
                 req.tipo(),
                 req.fechaInicio(),
                 req.fechaFin(),
-                req.observaciones()
+                req.observaciones(),
+                req.obraId()
         ));
     }
 

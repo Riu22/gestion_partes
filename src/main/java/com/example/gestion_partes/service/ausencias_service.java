@@ -37,8 +37,15 @@ public class ausencias_service {
 
     public Ausencia crear(UUID perfilId, AusenciaTipo tipo,
                           LocalDate inicio, LocalDate fin,
-                          String observaciones) {
-        return ausenciaRepo.save(new Ausencia(perfilId, tipo, inicio, fin, observaciones));
+                          String observaciones, Long obraId) {
+
+        Ausencia a = new Ausencia(perfilId, tipo, inicio, fin, observaciones);
+
+        if (tipo == AusenciaTipo.VACACIONES && obraId != null) {
+            a.setObraId(obraId);
+        }
+
+        return ausenciaRepo.save(a);
     }
 
     public void eliminar(Long id) {
