@@ -42,6 +42,14 @@ public class csv_export_service {
     );
 
     // ─────────────────────────────────────────────────────────────────────────
+    //  ORDEN DE OBRAS: primero las que NO empiezan por "font" (alfabético),
+    //  luego las que SÍ empiezan por "font" (alfabético, case-insensitive)
+    // ─────────────────────────────────────────────────────────────────────────
+    private static final Comparator<String> OBRA_ORDER = Comparator
+            .comparingInt((String nombre) -> nombre.toLowerCase().startsWith("font") ? 1 : 0)
+            .thenComparing(String.CASE_INSENSITIVE_ORDER);
+
+    // ─────────────────────────────────────────────────────────────────────────
     //  QUINCENA (Resumen)
     // ─────────────────────────────────────────────────────────────────────────
     public ResponseEntity<byte[]> buildQuincenaXlsx(
@@ -68,7 +76,8 @@ public class csv_export_service {
                 cell.setCellStyle(csHeader);
             }
 
-            Map<String, List<quincena_dto>> porObra = new LinkedHashMap<>();
+            // Ordenar: primero obras sin "font", luego con "font", cada grupo alfabético
+            Map<String, List<quincena_dto>> porObra = new TreeMap<>(OBRA_ORDER);
             for (quincena_dto d : datos) {
                 String obra = d.getObra() != null ? d.getObra() : "Sin Obra";
                 porObra.computeIfAbsent(obra, k -> new ArrayList<>()).add(d);
@@ -154,11 +163,32 @@ public class csv_export_service {
             final int totalCol    = FIXED_COLS + diasRango.size();
             final int obraTotalCol = totalCol + 1;
 
-            Map<String, List<Map<String, Object>>> porObra = new LinkedHashMap<>();
+            // ── Agrupar por obra (ordenado: no-font primero, font después) ────
+            Map<String, List<Map<String, Object>>> porObra = new TreeMap<>(OBRA_ORDER);
             for (Map<String, Object> fila : filas) {
                 String obra = fila.get("obra") != null ? fila.get("obra").toString() : "Sin Obra";
                 porObra.computeIfAbsent(obra, k -> new ArrayList<>()).add(fila);
             }
+
+            // ── Filtrar operarios sin datos en el rango ───────────────────────
+            Set<String> fechasRango = diasRango.stream()
+                    .map(LocalDate::toString)
+                    .collect(Collectors.toSet());
+
+            for (Map.Entry<String, List<Map<String, Object>>> entry : porObra.entrySet()) {
+                entry.getValue().removeIf(fila -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> horasDias = (Map<String, Object>) fila.getOrDefault("horas_por_dia", Map.of());
+                    @SuppressWarnings("unchecked")
+                    Map<String, String> ausencias = (Map<String, String>) fila.getOrDefault("ausencias_por_dia", Map.of());
+
+                    boolean tieneHoras     = horasDias.keySet().stream().anyMatch(fechasRango::contains);
+                    boolean tieneAusencias = ausencias.keySet().stream().anyMatch(fechasRango::contains);
+                    return !tieneHoras && !tieneAusencias;
+                });
+            }
+            // Eliminar obras que quedaron completamente vacías tras el filtro
+            porObra.entrySet().removeIf(e -> e.getValue().isEmpty());
 
             int rowIdx = 0;
             double granTotalPersonas = 0;
@@ -227,7 +257,7 @@ public class csv_export_service {
 
                     for (int i = 0; i < diasRango.size(); i++) {
                         LocalDate dia = diasRango.get(i);
-                        String fechaStr = dia.toString(); // "2026-05-04"
+                        String fechaStr = dia.toString();
                         String ausencia = ausencias.get(fechaStr);
                         Cell cell       = row.createCell(FIXED_COLS + i);
                         CellStyle base  = isDiaRojo(dia) ? csWeekend : csNormal;
@@ -239,7 +269,6 @@ public class csv_export_service {
                         } else if ("PATERNIDAD".equals(ausencia)) {
                             cell.setCellValue("P"); cell.setCellStyle(csPat);
                         } else {
-                            // horas_por_dia es Map<String, Map<String,Object>> con {horas, parte_id, link}
                             double h = 0.0;
                             Object entrada = horasDias.get(fechaStr);
                             if (entrada instanceof Map) {
