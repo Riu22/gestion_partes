@@ -2,7 +2,6 @@ package com.example.gestion_partes.repo;
 
 import com.example.gestion_partes.dto.contabilidad_detalle_dto;
 import com.example.gestion_partes.dto.quincena_dto;
-import com.example.gestion_partes.model.especialidad;
 import com.example.gestion_partes.model.partes_trabajo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -19,6 +18,10 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
     List<partes_trabajo> findByObraId(Long obraId);
     List<partes_trabajo> findByPerfilId(UUID uuid);
     List<partes_trabajo> findByFecha(LocalDate fecha);
+
+    // ✅ CORRECCIÓN DE RENDIMIENTO: Extrae solo las fechas únicas directo desde la BD
+    @Query("SELECT DISTINCT p.fecha FROM partes_trabajo p WHERE p.perfil.id = :perfilId ORDER BY p.fecha ASC")
+    List<LocalDate> findDistinctFechasByPerfilId(@Param("perfilId") UUID perfilId);
 
     // Encargado ve partes de sus operarios
     @Query("SELECT p FROM partes_trabajo p WHERE p.perfil.jefeDirecto.id = :encargadoId")
@@ -43,9 +46,10 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("especialidad") String especialidad
     );
 
+    // NOTA: Si quincena_dto es una clase/Record, recuerda anteponer el 'new paquete.quincena_dto(...)'
     @Query("SELECT p.perfil.codigo as codigo, " +
             "p.perfil.name as nombre, " +
-            "p.perfil.apellidos as apellidos, " +   // ← alias = apellidos (con s)
+            "p.perfil.apellidos as apellidos, " +
             "CASE WHEN p.especialidad = 'FONTANERIA' THEN CONCAT('Font ', p.obra.nombre) " +
             "     ELSE p.obra.nombre END as obra, " +
             "SUM(p.horas_normales) as total_horas " +
@@ -58,7 +62,6 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
-
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.obra.id IN :obraIds AND " +
             "(:operario IS NULL OR LOWER(p.perfil.name) LIKE LOWER(CONCAT('%', :operario, '%')) " +
@@ -68,6 +71,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("obraIds") List<Long> obraIds,
             @Param("operario") String operario,
             @Param("especialidad") String especialidad);
+
     @Query(value = "SELECT pt.id as parteId, " +
             "p.codigo as codigo, " +
             "p.nombre as nombre, " +
@@ -110,6 +114,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta,
             @Param("obraIds") List<Long> obraIds
     );
+
     @Query("SELECT MIN(p.fecha) FROM partes_trabajo p")
     Optional<LocalDate> findFechaMasAntigua();
 
@@ -127,7 +132,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
     // Admin/Gestión — últimos N días
     List<partes_trabajo> findByFechaGreaterThanEqualOrderByFechaDesc(LocalDate desde);
 
-    // Visibilidad jerárquica con filtro de fecha — misma lógica que findPartesVisiblesParaPerfil
+    // Visibilidad jerárquica con filtro de fecha
     @Query("""
     SELECT DISTINCT p FROM partes_trabajo p
     LEFT JOIN p.perfil pr
@@ -141,7 +146,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
         OR jd1.id = :perfilId
         OR jd2.id = :perfilId
     )
-""")
+    """)
     List<partes_trabajo> findPartesVisiblesParaPerfilDesde(
             @Param("perfilId") UUID perfilId,
             @Param("desde") LocalDate desde

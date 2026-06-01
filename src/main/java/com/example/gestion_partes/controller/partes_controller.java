@@ -240,8 +240,8 @@ public class partes_controller {
                         parte.getHoras_extra(),
                         parte.getEspecialidad(),
                         parte.getFirma_url(),
-                        parte.getTrabajos_extra(),
-                        parte.getNombre_firmado()
+                        parte.getNombre_firmado(),
+                        parte.getTrabajos_extra()
                 ))
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new RuntimeException("Parte no encontrado"));
