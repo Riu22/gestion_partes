@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -26,14 +28,18 @@ public class pdf_service {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // ── Colores ───────────────────────────────────────────────────────────────
-    private static final Color COLOR_HEADER_ELEC  = new Color(255, 185, 0);
-    private static final Color COLOR_HEADER_FONT  = new Color(13,  71,  161);
-    private static final Color COLOR_HEADER_OP    = new Color(232, 240, 255);
-    private static final Color COLOR_FILA_PAR     = new Color(248, 249, 252);
-    private static final Color COLOR_TOTAL        = new Color(240, 244, 255);
-    private static final Color COLOR_TEXTO_BLANCO = Color.WHITE;
-    private static final Color COLOR_TEXTO_DARK   = new Color(26,  26,  46);
-    private static final Color COLOR_BORDER       = new Color(200, 210, 230);
+    private static final Color COLOR_HEADER_ELEC   = new Color(255, 185, 0);
+    private static final Color COLOR_HEADER_FONT   = new Color(13,  71,  161);
+    private static final Color COLOR_HEADER_OP     = new Color(232, 240, 255);
+    private static final Color COLOR_FILA_PAR      = new Color(248, 249, 252);
+    private static final Color COLOR_TOTAL         = new Color(240, 244, 255);
+    private static final Color COLOR_TEXTO_BLANCO  = Color.WHITE;
+    private static final Color COLOR_TEXTO_DARK    = new Color(26,  26,  46);
+    private static final Color COLOR_BORDER        = new Color(200, 210, 230);
+    private static final Color COLOR_EXTRA_BG      = new Color(255, 251, 235);
+    private static final Color COLOR_EXTRA_BORDER  = new Color(251, 191, 36);
+    private static final Color COLOR_FIRMA_BG      = new Color(240, 253, 244);
+    private static final Color COLOR_FIRMA_BORDER  = new Color(134, 239, 172);
 
     // ─────────────────────────────────────────────────────────────────────────
     // Clase interna: cabecera dinámica + pie de página
@@ -71,7 +77,6 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // ZIP: un PDF por cada combinación obra + especialidad
-    // Cabecera = nombre de la obra
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarZipPartes(
             List<Long>   obraIds,
@@ -120,7 +125,6 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // ZIP: un PDF por cada combinación operario + especialidad
-    // Cabecera = nombre del operario
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarZipPartesPorOperario(
             List<Long>   obraIds,
@@ -170,7 +174,6 @@ public class pdf_service {
 
     // ─────────────────────────────────────────────────────────────────────────
     // PDF único — todas las obras en un solo archivo
-    // Una página por cada combinación obra + especialidad
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
@@ -213,9 +216,7 @@ public class pdf_service {
             String nombreObra = porEsp.values().iterator().next().get(0).getObra().getNombre();
 
             for (String esp : ordenEsp) {
-                if (!primerGrupo) {
-                    doc.newPage();
-                }
+                if (!primerGrupo) doc.newPage();
                 primerGrupo = false;
                 evento.tituloActual = nombreObra;
                 agregarGrupoAlDocumento(doc, nombreObra, esp, porEsp.get(esp), evento);
@@ -228,7 +229,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PDF de un grupo obra + especialidad (usado por generarZipPartes)
+    // PDF de un grupo obra + especialidad
     // ─────────────────────────────────────────────────────────────────────────
     private byte[] generarPdfGrupo(
             String nombreObra,
@@ -250,7 +251,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // PDF de un operario + especialidad (usado por generarZipPartesPorOperario)
+    // PDF de un operario + especialidad
     // ─────────────────────────────────────────────────────────────────────────
     private byte[] generarPdfOperarioEsp(
             String nombreOp,
@@ -266,9 +267,7 @@ public class pdf_service {
         evento.tituloActual = nombreOp;
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
-
         agregarGrupoAlDocumento(doc, nombreOp, especialidad, partes, evento);
-
         doc.close();
         return baos.toByteArray();
     }
@@ -318,7 +317,7 @@ public class pdf_service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Tabla de un operario
+    // Tabla de un operario — incluye trabajos extra y firma
     // ─────────────────────────────────────────────────────────────────────────
     private PdfPTable tablaOperario(List<partes_trabajo> partesOp) throws Exception {
         partes_trabajo primero = partesOp.get(0);
@@ -332,6 +331,7 @@ public class pdf_service {
         tabla.setSpacingAfter(2);
         tabla.setKeepTogether(true);
 
+        // ── Cabecera del operario ─────────────────────────────────────────────
         Font fOp = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, COLOR_TEXTO_DARK);
         PdfPCell celdaOp = new PdfPCell(new Phrase("  " + nombreOp, fOp));
         celdaOp.setColspan(4);
@@ -344,6 +344,7 @@ public class pdf_service {
         celdaOp.setBorderWidthRight(0);
         tabla.addCell(celdaOp);
 
+        // ── Filas de partes ───────────────────────────────────────────────────
         double totalHoras = 0;
         boolean par = false;
         for (partes_trabajo p : partesOp) {
@@ -358,6 +359,7 @@ public class pdf_service {
             totalHoras += p.getHoras_normales();
         }
 
+        // ── Fila total ────────────────────────────────────────────────────────
         String textoTotal = "Total: " + formatHoras(totalHoras);
         Font fTotal = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, COLOR_TEXTO_DARK);
         PdfPCell celdaTotal = new PdfPCell(new Phrase(textoTotal, fTotal));
@@ -372,7 +374,149 @@ public class pdf_service {
         celdaTotal.setBorderWidthRight(0);
         tabla.addCell(celdaTotal);
 
+        // ── Trabajos extra (si los hay en algún parte) ────────────────────────
+        String trabajosExtraAcumulados = partesOp.stream()
+                .filter(p -> p.getTrabajos_extra() != null && !p.getTrabajos_extra().isBlank())
+                .map(p -> "• [" + FMT.format(p.getFecha()) + "] " + p.getTrabajos_extra().trim())
+                .collect(Collectors.joining("\n"));
+
+        if (!trabajosExtraAcumulados.isBlank()) {
+            // Etiqueta
+            Font fExtraLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
+                    new Color(146, 64, 14));
+            PdfPCell celdaExtraLabel = new PdfPCell(new Phrase("⚡ Trabajos extra", fExtraLabel));
+            celdaExtraLabel.setColspan(4);
+            celdaExtraLabel.setBackgroundColor(COLOR_EXTRA_BG);
+            celdaExtraLabel.setPaddingTop(5);
+            celdaExtraLabel.setPaddingBottom(2);
+            celdaExtraLabel.setPaddingLeft(8);
+            celdaExtraLabel.setPaddingRight(8);
+            celdaExtraLabel.setBorderColor(COLOR_EXTRA_BORDER);
+            celdaExtraLabel.setBorderWidthTop(1f);
+            celdaExtraLabel.setBorderWidthBottom(0);
+            celdaExtraLabel.setBorderWidthLeft(2f);
+            celdaExtraLabel.setBorderWidthRight(0);
+            tabla.addCell(celdaExtraLabel);
+
+            // Contenido
+            Font fExtra = FontFactory.getFont(FontFactory.HELVETICA, 8,
+                    new Color(92, 45, 14));
+            PdfPCell celdaExtra = new PdfPCell(new Phrase(trabajosExtraAcumulados, fExtra));
+            celdaExtra.setColspan(4);
+            celdaExtra.setBackgroundColor(COLOR_EXTRA_BG);
+            celdaExtra.setPaddingTop(2);
+            celdaExtra.setPaddingBottom(6);
+            celdaExtra.setPaddingLeft(8);
+            celdaExtra.setPaddingRight(8);
+            celdaExtra.setBorderColor(COLOR_EXTRA_BORDER);
+            celdaExtra.setBorderWidthTop(0);
+            celdaExtra.setBorderWidthBottom(1f);
+            celdaExtra.setBorderWidthLeft(2f);
+            celdaExtra.setBorderWidthRight(0);
+            tabla.addCell(celdaExtra);
+        }
+
+        // ── Firma ─────────────────────────────────────────────────────────────
+        // Tomamos la firma del parte más reciente que la tenga
+        partes_trabajo parteConFirma = partesOp.stream()
+                .filter(p -> p.getFirma_url() != null && !p.getFirma_url().isBlank())
+                .findFirst()
+                .orElse(null);
+
+        if (parteConFirma != null) {
+            agregarFilaFirma(tabla, parteConFirma);
+        }
+
         return tabla;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Fila de firma dentro de la tabla del operario
+    // ─────────────────────────────────────────────────────────────────────────
+    private void agregarFilaFirma(PdfPTable tabla, partes_trabajo parte) {
+        try {
+            // Descargar imagen de firma
+            byte[] imagenBytes = descargarImagen(parte.getFirma_url());
+            if (imagenBytes == null || imagenBytes.length == 0) return;
+
+            Image firmaImg = Image.getInstance(imagenBytes);
+            firmaImg.scaleToFit(120, 50);
+
+            // Etiqueta
+            String nombreFirmador = parte.getNombre_firmado() != null
+                    ? parte.getNombre_firmado() : "Firmado";
+            Font fFirmaLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
+                    new Color(20, 83, 45));
+            PdfPCell celdaFirmaLabel = new PdfPCell(
+                    new Phrase("✔ Conformidad — " + nombreFirmador, fFirmaLabel));
+            celdaFirmaLabel.setColspan(4);
+            celdaFirmaLabel.setBackgroundColor(COLOR_FIRMA_BG);
+            celdaFirmaLabel.setPaddingTop(5);
+            celdaFirmaLabel.setPaddingBottom(2);
+            celdaFirmaLabel.setPaddingLeft(8);
+            celdaFirmaLabel.setPaddingRight(8);
+            celdaFirmaLabel.setBorderColor(COLOR_FIRMA_BORDER);
+            celdaFirmaLabel.setBorderWidthTop(1f);
+            celdaFirmaLabel.setBorderWidthBottom(0);
+            celdaFirmaLabel.setBorderWidthLeft(2f);
+            celdaFirmaLabel.setBorderWidthRight(0);
+            tabla.addCell(celdaFirmaLabel);
+
+            // Imagen de la firma
+            PdfPCell celdaFirmaImg = new PdfPCell(firmaImg, false);
+            celdaFirmaImg.setColspan(4);
+            celdaFirmaImg.setBackgroundColor(COLOR_FIRMA_BG);
+            celdaFirmaImg.setPaddingTop(4);
+            celdaFirmaImg.setPaddingBottom(8);
+            celdaFirmaImg.setPaddingLeft(8);
+            celdaFirmaImg.setPaddingRight(8);
+            celdaFirmaImg.setHorizontalAlignment(Element.ALIGN_LEFT);
+            celdaFirmaImg.setBorderColor(COLOR_FIRMA_BORDER);
+            celdaFirmaImg.setBorderWidthTop(0);
+            celdaFirmaImg.setBorderWidthBottom(1f);
+            celdaFirmaImg.setBorderWidthLeft(2f);
+            celdaFirmaImg.setBorderWidthRight(0);
+            tabla.addCell(celdaFirmaImg);
+
+        } catch (Exception e) {
+            // Si no se puede cargar la imagen, añadir celda de texto indicando firma no disponible
+            try {
+                Font fFirmaError = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, Color.GRAY);
+                String nombreFirmador = parte.getNombre_firmado() != null
+                        ? parte.getNombre_firmado() : "firmante desconocido";
+                PdfPCell celdaError = new PdfPCell(
+                        new Phrase("Firma de " + nombreFirmador + " (imagen no disponible)", fFirmaError));
+                celdaError.setColspan(4);
+                celdaError.setBackgroundColor(COLOR_FIRMA_BG);
+                celdaError.setPadding(6);
+                celdaError.setBorderColor(COLOR_FIRMA_BORDER);
+                celdaError.setBorderWidthTop(1f);
+                celdaError.setBorderWidthBottom(1f);
+                celdaError.setBorderWidthLeft(2f);
+                celdaError.setBorderWidthRight(0);
+                tabla.addCell(celdaError);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Descarga una imagen desde una URL y devuelve los bytes
+    // ─────────────────────────────────────────────────────────────────────────
+    private byte[] descargarImagen(String urlStr) {
+        try {
+            URL url = new URL(urlStr);
+            try (InputStream is = url.openStream();
+                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[8192];
+                int n;
+                while ((n = is.read(buffer)) != -1) {
+                    baos.write(buffer, 0, n);
+                }
+                return baos.toByteArray();
+            }
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

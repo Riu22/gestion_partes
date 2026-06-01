@@ -240,6 +240,7 @@ public class partes_controller {
                         parte.getHoras_extra(),
                         parte.getEspecialidad(),
                         parte.getFirma_url(),
+                        parte.getTrabajos_extra(),
                         parte.getNombre_firmado()
                 ))
                 .map(ResponseEntity::ok)

@@ -43,6 +43,9 @@ public class partes_trabajo {
     @Column(name = "especialidad")
     private especialidad especialidad;
 
+    @Column(name = "trabajos_extra")
+    private String trabajos_extra;
+
     // true cuando un ADMINISTRACION o GESTION crea el parte para otro usuario
     @Column(name = "creado_por_gestor", nullable = false)
     private boolean creado_por_gestor = false;
@@ -109,5 +112,13 @@ public class partes_trabajo {
 
     public void setNombre_firmado(String nombre_firmado) {
         this.nombre_firmado = nombre_firmado;
+    }
+
+    public String getTrabajos_extra() {
+        return trabajos_extra;
+    }
+
+    public void setTrabajos_extra(String trabajos_extra) {
+        this.trabajos_extra = trabajos_extra;
     }
 }

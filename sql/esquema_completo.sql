@@ -68,6 +68,7 @@ CREATE TABLE public.partes_trabajo (
                                        creado_por_gestor  boolean NOT NULL DEFAULT FALSE,
                                        firma_url          text,
                                        nombre_firmador    text,
+                                       trabajos_extra     text,
                                        creado_el          timestamp with time zone DEFAULT now()
 );
 

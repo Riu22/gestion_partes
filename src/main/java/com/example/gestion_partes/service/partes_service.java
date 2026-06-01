@@ -100,11 +100,17 @@ public class partes_service {
         nuevo.setHoras_extra(0.0);
         nuevo.setEspecialidad(dto.especialidad());
         nuevo.setNombre_firmado(dto.nombre_firmado());
+        nuevo.setTrabajos_extra(dto.trabajo_extra());
 
         // Bloquear creación si el operario está de baja o vacaciones ese día
         if (ausenciasService.estaAusenteEnFecha(idPerfil, dto.fecha())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "No se puede crear un parte: el operario está de baja o vacaciones ese día");
+        }
+
+        if(nuevo.getObra().equals(null)){
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No se puede crear un parte sin obra");
         }
 
         boolean creadoParaOtro = !solicitante.getId().equals(idPerfil);
