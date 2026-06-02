@@ -19,15 +19,12 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
     List<partes_trabajo> findByPerfilId(UUID uuid);
     List<partes_trabajo> findByFecha(LocalDate fecha);
 
-    // ✅ CORRECCIÓN DE RENDIMIENTO: Extrae solo las fechas únicas directo desde la BD
     @Query("SELECT DISTINCT p.fecha FROM partes_trabajo p WHERE p.perfil.id = :perfilId ORDER BY p.fecha ASC")
     List<LocalDate> findDistinctFechasByPerfilId(@Param("perfilId") UUID perfilId);
 
-    // Encargado ve partes de sus operarios
     @Query("SELECT p FROM partes_trabajo p WHERE p.perfil.jefeDirecto.id = :encargadoId")
     List<partes_trabajo> findPartesParaEncargado(UUID encargadoId);
 
-    // Jefe de obra ve partes de sus encargados y de los operarios de esos encargados
     @Query("SELECT p FROM partes_trabajo p WHERE " +
             "p.perfil.jefeDirecto.id = :jefeId OR " +
             "p.perfil.jefeDirecto.jefeDirecto.id = :jefeId")
@@ -46,7 +43,6 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("especialidad") String especialidad
     );
 
-    // NOTA: Si quincena_dto es una clase/Record, recuerda anteponer el 'new paquete.quincena_dto(...)'
     @Query("SELECT p.perfil.codigo as codigo, " +
             "p.perfil.name as nombre, " +
             "p.perfil.apellidos as apellidos, " +
@@ -105,14 +101,23 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             "JOIN perfiles p ON pt.usuario_id = p.id " +
             "JOIN obras o ON pt.point_obra_id = o.id " +
             "WHERE pt.fecha BETWEEN :desde AND :hasta " +
-            "AND o.id IN :obraIds " +
-            "AND o.activa = true " +
-            "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
-            nativeQuery = true)
+            "AND (" +
+            "  o.id IN :obraIds " +
+            "  OR p.jefe_directo_id = :jefeId " +
+            "  OR EXISTS (" +
+            "    SELECT 1 FROM perfiles jefe_intermedio " +
+                    "    WHERE jefe_intermedio.id = p.jefe_directo_id " +
+                    "    AND jefe_intermedio.jefe_directo_id = :jefeId" +
+                    "  )" +
+                    ") " +
+                    "AND o.activa = true " +
+                    "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
+    nativeQuery = true)
     List<contabilidad_detalle_dto> getDetalleContabilidadPorObras(
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta,
-            @Param("obraIds") List<Long> obraIds
+            @Param("obraIds") List<Long> obraIds,
+            @Param("jefeId") UUID jefeId        // ← nuevo parámetro
     );
 
     @Query("SELECT MIN(p.fecha) FROM partes_trabajo p")
@@ -129,10 +134,8 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("fin") LocalDate fin
     );
 
-    // Admin/Gestión — últimos N días
     List<partes_trabajo> findByFechaGreaterThanEqualOrderByFechaDesc(LocalDate desde);
 
-    // Visibilidad jerárquica con filtro de fecha
     @Query("""
     SELECT DISTINCT p FROM partes_trabajo p
     LEFT JOIN p.perfil pr

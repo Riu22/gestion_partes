@@ -22,8 +22,8 @@ import java.util.stream.Collectors;
 @Service
 public class contabilidad_service {
 
-    private static final String OBRA_LUM    = "OFICINA LUM/ALMACÉN LUM";
-    private static final String BASE_URL_PARTE = "/partes/";
+    private static final String OBRA_LUM        = "OFICINA LUM/ALMACÉN LUM";
+    private static final String BASE_URL_PARTE  = "/partes/";
 
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
             MonthDay.of(1,  1), MonthDay.of(1,  6),
@@ -36,11 +36,7 @@ public class contabilidad_service {
     @Autowired private partes_trabajo_repo partesRepo;
     @Autowired private AusenciaRepo        ausenciaRepo;
     @Autowired private perfil_repo         perfilRepo;
-    @Autowired private obra_repo          obrasRepo;
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Record interno: tipo de ausencia + obra asociada (solo VACACIONES)
-    // ─────────────────────────────────────────────────────────────────────────
+    @Autowired private obra_repo           obrasRepo;
 
     private record AusenciaDia(String tipo, Long obraId) {}
 
@@ -50,18 +46,26 @@ public class contabilidad_service {
         return partesRepo.getResumenQuincena(desde, hasta);
     }
 
+    /** Administración: ve todo sin filtro de obras ni de jefe. */
     public List<Map<String, Object>> getDetalleContabilidad(
             LocalDate desde, LocalDate hasta) {
         return procesarDatos(
                 partesRepo.getDetalleContabilidad(desde, hasta),
-                desde, hasta, null);
+                desde, hasta, null, null);
     }
 
+    /**
+     * Vista de jefe de obra: filtra por sus obras PERO además incluye
+     * todo lo que ha hecho su personal directo (jefe_directo_id = jefeId)
+     * aunque sea en obras ajenas.
+     *
+     * @param jefeId  UUID del jefe que hace la consulta (null si es admin/gestión)
+     */
     public List<Map<String, Object>> getDetalleContabilidadPorObras(
-            LocalDate desde, LocalDate hasta, List<Long> obraIds) {
+            LocalDate desde, LocalDate hasta, List<Long> obraIds, UUID jefeId) {
         return procesarDatos(
-                partesRepo.getDetalleContabilidadPorObras(desde, hasta, obraIds),
-                desde, hasta, obraIds);
+                partesRepo.getDetalleContabilidadPorObras(desde, hasta, obraIds, jefeId),
+                desde, hasta, obraIds, jefeId);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -77,7 +81,6 @@ public class contabilidad_service {
                 && !esFestivo(fecha);
     }
 
-    /** Construye el objeto día con horas, parte_id y link. */
     private Map<String, Object> entradaDia(double horas, Long parteId) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("horas",    horas);
@@ -86,11 +89,6 @@ public class contabilidad_service {
         return m;
     }
 
-    /**
-     * Devuelve el nombre de obra que debe usarse para imputar una ausencia.
-     * - VACACIONES con obraId → nombre de esa obra
-     * - Cualquier otro caso   → OBRA_LUM
-     */
     private String resolverNombreObra(AusenciaDia ad, Map<Long, String> nombreObras) {
         if ("VACACIONES".equals(ad.tipo()) && ad.obraId() != null) {
             return nombreObras.getOrDefault(ad.obraId(), OBRA_LUM);
@@ -98,10 +96,6 @@ public class contabilidad_service {
         return OBRA_LUM;
     }
 
-    /**
-     * Comprueba si una fila (identificada por su nombre de obra) fue generada
-     * como destino de unas vacaciones con obra asignada para el perfil dado.
-     */
     private boolean esFilaDeVacacionesConObra(
             String nombreObra,
             perfil p,
@@ -123,11 +117,35 @@ public class contabilidad_service {
             List<contabilidad_detalle_dto> datos,
             LocalDate desde,
             LocalDate hasta,
-            List<Long> obraIds) {
+            List<Long> obraIds,
+            UUID jefeId) {
 
         boolean esAdministracion = (obraIds == null);
 
-        // ── 1. Cargar perfiles UNA sola vez, indexados por código y por UUID ──
+        // ── 0. Resolver personal propio del jefe ──────────────────────────────
+        //      Incluye subordinados directos Y subordinados de sus encargados
+        //      (dos niveles, igual que la query SQL).
+        Set<String> codigosPersonalPropio = new HashSet<>();
+        Set<UUID>   idsPersonalPropio     = new HashSet<>();
+
+        if (jefeId != null) {
+            // Nivel 1: jefe_directo_id = jefeId  (operarios/encargados directos)
+            List<perfil> nivel1 = perfilRepo.findByJefeDirecto_Id(jefeId);
+            for (perfil p : nivel1) {
+                if (p.getCodigo() != null) codigosPersonalPropio.add(p.getCodigo());
+                idsPersonalPropio.add(p.getId());
+
+                // Nivel 2: personal cuyo jefe_directo es un encargado de nivel 1
+                if (p.getRol() == user_rol.ENCARGADO) {
+                    for (perfil p2 : perfilRepo.findByJefeDirecto_Id(p.getId())) {
+                        if (p2.getCodigo() != null) codigosPersonalPropio.add(p2.getCodigo());
+                        idsPersonalPropio.add(p2.getId());
+                    }
+                }
+            }
+        }
+
+        // ── 1. Cargar perfiles indexados ──────────────────────────────────────
         List<perfil> todosPerfiles = perfilRepo.findAll();
 
         Map<String, perfil> codigoAPerfil = new HashMap<>(todosPerfiles.size() * 2);
@@ -139,7 +157,7 @@ public class contabilidad_service {
             if (p.getId()     != null) idAPerfil    .put(p.getId(),     p);
         }
 
-        // ── 1b. Precargar nombres de obras (para resolver VACACIONES con obra) ─
+        // ── 1b. Nombres de obras ──────────────────────────────────────────────
         Map<Long, String> nombreObras = obrasRepo.findAll()
                 .stream()
                 .collect(Collectors.toMap(
@@ -151,10 +169,10 @@ public class contabilidad_service {
         Map<String, Map<String, Object>> mapaAgrupado = new LinkedHashMap<>();
 
         for (contabilidad_detalle_dto d : datos) {
-            String nombreObraRaw  = d.getObra_nombre() != null ? d.getObra_nombre() : "Sin Obra";
-            String especialidad   = d.getEspecialidad() != null
+            String nombreObraRaw   = d.getObra_nombre() != null ? d.getObra_nombre() : "Sin Obra";
+            String especialidad    = d.getEspecialidad() != null
                     ? d.getEspecialidad().toUpperCase() : "";
-            boolean esFont        = "FONTANERIA".equals(especialidad);
+            boolean esFont         = "FONTANERIA".equals(especialidad);
             String nombreObraVista = esFont ? "Font " + nombreObraRaw : nombreObraRaw;
 
             String codigoUser = d.getCodigo() != null ? d.getCodigo() : "000";
@@ -201,14 +219,22 @@ public class contabilidad_service {
                     .merge("total_horas", horas, (a, b) -> (double) a + (double) b);
         }
 
-        // ── 3. Inyectar operarios sin partes (solo administración) ────────────
-        if (esAdministracion) {
+        // ── 3. Inyectar operarios sin partes ──────────────────────────────────
+        //   - Administración: todos los operarios/encargados activos
+        //   - Jefe de obra:   solo su personal propio (codigosPersonalPropio)
+        boolean inyectarSinPartes = esAdministracion || !codigosPersonalPropio.isEmpty();
+
+        if (inyectarSinPartes) {
             for (perfil p : todosPerfiles) {
                 if (p.getCodigo() == null)                                   continue;
                 if (p.getRol() != user_rol.OPERARIO
                         && p.getRol() != user_rol.ENCARGADO)                 continue;
                 if (!p.isActivo())                                           continue;
                 if (codigosConParte.contains(p.getCodigo()))                 continue;
+
+                // En vista de jefe: solo inyectamos su personal propio
+                if (!esAdministracion
+                        && !codigosPersonalPropio.contains(p.getCodigo()))   continue;
 
                 String claveSinParte = p.getCodigo() + "|__SIN_PARTE__";
                 String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
@@ -228,11 +254,20 @@ public class contabilidad_service {
             }
         }
 
-        // ── 4. Pre-indexar ausencias: Map<perfilId, Map<fecha, AusenciaDia>> ──
-        //      Guardamos tipo + obraId para poder resolver destino en paso 5.
+        // ── 4. Pre-indexar ausencias ──────────────────────────────────────────
+        //   - Administración: todas las ausencias del rango
+        //   - Jefe de obra:   solo las de su personal propio
+        List<Ausencia> ausenciasRango = ausenciaRepo.findTodasEnRango(desde, hasta);
+
+        if (!esAdministracion && !idsPersonalPropio.isEmpty()) {
+            ausenciasRango = ausenciasRango.stream()
+                    .filter(a -> idsPersonalPropio.contains(a.getPerfilId()))
+                    .collect(Collectors.toList());
+        }
+
         Map<UUID, Map<LocalDate, AusenciaDia>> ausenciasFecha = new HashMap<>();
 
-        for (Ausencia a : ausenciaRepo.findTodasEnRango(desde, hasta)) {
+        for (Ausencia a : ausenciasRango) {
             Map<LocalDate, AusenciaDia> porFecha =
                     ausenciasFecha.computeIfAbsent(a.getPerfilId(), id -> new HashMap<>());
 
@@ -245,10 +280,9 @@ public class contabilidad_service {
             }
         }
 
-        // ── 5. Inyectar filas de ausencia para cada perfil ────────────────────
-        //      - BAJA / PATERNIDAD / VACACIONES sin obra → fila OBRA_LUM
-        //      - VACACIONES con obraId                   → fila con nombre de esa obra
-        if (esAdministracion) {
+        // ── 5. Inyectar filas de ausencia ─────────────────────────────────────
+        //   Igual que antes, pero en vista de jefe también aplica para su personal.
+        if (esAdministracion || !codigosPersonalPropio.isEmpty()) {
             for (Map.Entry<UUID, Map<LocalDate, AusenciaDia>> entry
                     : ausenciasFecha.entrySet()) {
 
@@ -256,7 +290,6 @@ public class contabilidad_service {
                 perfil p        = idAPerfil.get(perfilId);
                 if (p == null || p.getCodigo() == null) continue;
 
-                // Nombres de obra distintos que necesita este perfil
                 Set<String> obrasNecesarias = entry.getValue().values().stream()
                         .map(ad -> resolverNombreObra(ad, nombreObras))
                         .collect(Collectors.toSet());
@@ -282,13 +315,11 @@ public class contabilidad_service {
                     }
                 }
 
-                // Ya no necesitamos la fila placeholder sin parte
                 mapaAgrupado.remove(p.getCodigo() + "|__SIN_PARTE__");
             }
         }
 
         // ── 6. Rellenar ausencias_por_dia ─────────────────────────────────────
-        //      Se rellena en filas OBRA_LUM Y en filas de vacaciones con obra.
         for (Map<String, Object> fila : mapaAgrupado.values()) {
             fila.putIfAbsent("ausencias_por_dia", new LinkedHashMap<String, String>());
 
@@ -296,9 +327,6 @@ public class contabilidad_service {
             String codigo   = (String) fila.get("codigo");
             perfil p        = codigoAPerfil.get(codigo);
 
-            // Solo rellenamos ausencias en filas que son destino de ausencia:
-            // - la fila de OBRA_LUM
-            // - una fila de vacaciones con obra asignada
             boolean esFilaAusencia = OBRA_LUM.equals(obraFila)
                     || esFilaDeVacacionesConObra(obraFila, p, ausenciasFecha, nombreObras);
 
@@ -316,8 +344,6 @@ public class contabilidad_service {
                 AusenciaDia ad = ausFecha.get(dia);
                 if (ad == null) continue;
 
-                // Solo anotamos en esta fila si la ausencia de este día
-                // corresponde a la obra de la fila actual.
                 String obraEsperada = resolverNombreObra(ad, nombreObras);
                 if (obraEsperada.equals(obraFila)) {
                     ausenciasPorDia.put(dia.toString(), ad.tipo());

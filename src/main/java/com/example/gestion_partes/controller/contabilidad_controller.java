@@ -1,6 +1,7 @@
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.dto.quincena_dto;
+import com.example.gestion_partes.repo.perfil_repo;
 import com.example.gestion_partes.service.contabilidad_service;
 import com.example.gestion_partes.service.csv_export_service;
 import com.example.gestion_partes.service.obra_service;
@@ -27,7 +28,10 @@ public class contabilidad_controller {
     private csv_export_service xlsx_export_service;
 
     @Autowired
-    obra_service obra_service;
+    private obra_service obra_service;
+
+    @Autowired
+    private perfil_repo perfilRepo;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
@@ -70,13 +74,14 @@ public class contabilidad_controller {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             Authentication authentication) {
 
-        UUID perfilId = UUID.fromString(authentication.getName());
-        List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(perfilId);
+        UUID jefeId    = UUID.fromString(authentication.getName());
+        List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(jefeId);
+        boolean tienePersonal = !perfilRepo.findByJefeDirecto_Id(jefeId).isEmpty();
 
-        if (obraIds.isEmpty()) return ResponseEntity.ok(List.of());
+        if (obraIds.isEmpty() && !tienePersonal) return ResponseEntity.ok(List.of());
 
         return ResponseEntity.ok(
-                contabilidad_service.getDetalleContabilidadPorObras(desde, hasta, obraIds));
+                contabilidad_service.getDetalleContabilidadPorObras(desde, hasta, obraIds, jefeId));
     }
 
     @GetMapping("/jefe/exportar-detalle-csv")
@@ -86,13 +91,14 @@ public class contabilidad_controller {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
             Authentication authentication) throws Exception {
 
-        UUID perfilId = UUID.fromString(authentication.getName());
-        List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(perfilId);
+        UUID jefeId    = UUID.fromString(authentication.getName());
+        List<Long> obraIds = obra_service.getObrasAsignadasAUsuario(jefeId);
+        boolean tienePersonal = !perfilRepo.findByJefeDirecto_Id(jefeId).isEmpty();
 
-        if (obraIds.isEmpty()) return ResponseEntity.ok(new byte[0]);
+        if (obraIds.isEmpty() && !tienePersonal) return ResponseEntity.ok(new byte[0]);
 
         return xlsx_export_service.buildDetalleXlsx(
-                contabilidad_service.getDetalleContabilidadPorObras(desde, hasta, obraIds),
+                contabilidad_service.getDetalleContabilidadPorObras(desde, hasta, obraIds, jefeId),
                 desde, hasta);
     }
 }
