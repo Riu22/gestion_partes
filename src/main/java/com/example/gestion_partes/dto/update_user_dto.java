@@ -10,6 +10,8 @@ public record update_user_dto(
         String codigo,
         String especialidad,
         Boolean postventa,
-        String grupo_profesional
+        String grupo_profesional,
+        String email,
+        String password
 )
 {}

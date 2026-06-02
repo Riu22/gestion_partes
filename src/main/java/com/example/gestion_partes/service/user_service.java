@@ -53,9 +53,39 @@ public class user_service {
                     especialidad.valueOf(datosNuevos.especialidad().toUpperCase())
             );
         }
-        if (datosNuevos.grupo_profesional() != null) perfilExistente.setGrupo_profesional(datosNuevos.grupo_profesional());
+        if (datosNuevos.grupo_profesional() != null)
+            perfilExistente.setGrupo_profesional(datosNuevos.grupo_profesional());
+
         perfilExistente.setCreadoEl(OffsetDateTime.now());
-        return user_repo.save(perfilExistente);
+        perfil saved = user_repo.save(perfilExistente);
+
+        // Actualizar email y/o contraseña en Supabase Auth si vienen informados
+        if (datosNuevos.email() != null || datosNuevos.password() != null) {
+            update_auth_user(id, datosNuevos.email(), datosNuevos.password());
+        }
+
+        return saved;
+    }
+
+    private void update_auth_user(UUID id, String email, String password) {
+        String url = supabase_url + "/auth/v1/admin/users/" + id;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("apikey", service_key);
+        headers.set("Authorization", "Bearer " + service_key);
+
+        Map<String, Object> body = new HashMap<>();
+        if (email != null && !email.isBlank())       body.put("email", email);
+        if (password != null && !password.isBlank()) body.put("password", password);
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+        try {
+            rest_template.exchange(url, org.springframework.http.HttpMethod.PUT, request, String.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al actualizar auth en Supabase: " + e.getMessage());
+        }
     }
 
     public void create_user(create_user_dto new_user) {
