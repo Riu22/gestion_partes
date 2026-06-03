@@ -71,13 +71,18 @@ public class ausencias_service {
     public Map<String, Object> getDiasSinParte() {
         LocalDate fin = LocalDate.now().minusDays(1);
 
+        // Primer día del mes anterior — límite para ausencias visibles en la UI
+        LocalDate primerDiaMesAnterior = LocalDate.now()
+                .withDayOfMonth(1)
+                .minusMonths(1);
+
         List<perfil> operarios = perfil_repo.findByActivoTrueAndRolIn(
                 List.of(user_rol.OPERARIO, user_rol.ENCARGADO)
         );
 
         if (operarios.isEmpty()) return Collections.emptyMap();
 
-        // Fecha más antigua entre todos los perfiles (para precargar partes y ausencias en un solo rango)
+        // Fecha más antigua entre todos los perfiles (para precargar en un solo rango)
         LocalDate inicioGlobal = operarios.stream()
                 .map(p -> p.getCreadoEl() != null
                         ? p.getCreadoEl().toLocalDate()
@@ -117,20 +122,20 @@ public class ausencias_service {
                                     .min(Comparator.naturalOrder())
                                     .orElse(LocalDate.MAX);
                         })
-                        .thenComparing(p -> p.getApellidos() + " " + p.getName()))                .forEach(p -> {
-                    // Rango específico de este perfil desde su fecha de creación
+                        .thenComparing(p -> p.getApellidos() + " " + p.getName()))
+                .forEach(p -> {
                     LocalDate inicioPerfil = p.getCreadoEl() != null
                             ? p.getCreadoEl().toLocalDate()
                             : fin;
 
-                    if (fin.isBefore(inicioPerfil)) return; // creado hoy, nada que revisar
+                    if (fin.isBefore(inicioPerfil)) return;
 
                     List<LocalDate> diasLaborables = diasLaborablesEntre(inicioPerfil, fin);
 
                     Map<LocalDate, Double> horasPorFecha = horasPorPerfilFecha
                             .getOrDefault(p.getId(), Collections.emptyMap());
 
-                    // Conjunto de fechas cubiertas por baja o vacaciones
+                    // Conjunto COMPLETO de fechas justificadas (toda la historia, para no marcar falsos positivos)
                     Set<LocalDate> diasJustificados = ausenciasPorPerfil
                             .getOrDefault(p.getId(), Collections.emptyList())
                             .stream()
@@ -138,16 +143,17 @@ public class ausencias_service {
                                     .datesUntil(a.getFechaFin().plusDays(1)))
                             .collect(Collectors.toSet());
 
-                    // Ausencias activas para mostrar en la UI
+                    // Ausencias visibles en la UI: solo mes actual + mes anterior
                     List<Map<String, Object>> ausenciasActivas = ausenciasPorPerfil
                             .getOrDefault(p.getId(), Collections.emptyList())
                             .stream()
+                            .filter(a -> !a.getFechaFin().isBefore(primerDiaMesAnterior))
                             .map(a -> {
                                 Map<String, Object> m = new LinkedHashMap<>();
-                                m.put("id", a.getId());
-                                m.put("tipo", a.getTipo().name());
-                                m.put("fechaInicio", a.getFechaInicio().format(FMT));
-                                m.put("fechaFin", a.getFechaFin().format(FMT));
+                                m.put("id",            a.getId());
+                                m.put("tipo",          a.getTipo().name());
+                                m.put("fechaInicio",   a.getFechaInicio().format(FMT));
+                                m.put("fechaFin",      a.getFechaFin().format(FMT));
                                 m.put("observaciones", a.getObservaciones());
                                 return m;
                             })
@@ -177,17 +183,106 @@ public class ausencias_service {
                     if (!diasSin.isEmpty() || !diasIncompletos.isEmpty()
                             || !ausenciasActivas.isEmpty()) {
                         Map<String, Object> info = new LinkedHashMap<>();
-                        info.put("nombre", p.getApellidos() + " " + p.getName());
+                        info.put("nombre",           p.getApellidos() + " " + p.getName());
                         info.put("ausenciasActivas", ausenciasActivas);
-                        info.put("diasSin", diasSin);
-                        info.put("totalSin", diasSin.size());
-                        info.put("diasIncompletos", diasIncompletos);
+                        info.put("diasSin",          diasSin);
+                        info.put("totalSin",         diasSin.size());
+                        info.put("diasIncompletos",  diasIncompletos);
                         info.put("totalIncompletos", diasIncompletos.size());
-                        info.put("totalLaborables", diasLaborables.size());
+                        info.put("totalLaborables",  diasLaborables.size());
                         resultado.put(p.getId().toString(), info);
                     }
                 });
 
+        return resultado;
+    }
+
+    // ── Historial completo de un perfil ──────────────────────────────────────
+
+    public Map<String, Object> getHistorialPerfil(UUID perfilId) {
+        perfil p = perfil_repo.findById(perfilId)
+                .orElseThrow(() -> new RuntimeException("Perfil no encontrado: " + perfilId));
+
+        LocalDate fin          = LocalDate.now().minusDays(1);
+        LocalDate inicioPerfil = p.getCreadoEl() != null
+                ? p.getCreadoEl().toLocalDate()
+                : fin;
+
+        if (fin.isBefore(inicioPerfil)) {
+            Map<String, Object> vacio = new LinkedHashMap<>();
+            vacio.put("nombre",           p.getApellidos() + " " + p.getName());
+            vacio.put("perfilId",         perfilId.toString());
+            vacio.put("totalLaborables",  0);
+            vacio.put("diasSin",          Collections.emptyList());
+            vacio.put("totalSin",         0);
+            vacio.put("diasIncompletos",  Collections.emptyList());
+            vacio.put("totalIncompletos", 0);
+            vacio.put("ausencias",        Collections.emptyList());
+            return vacio;
+        }
+
+        // Días laborables desde la incorporación hasta ayer
+        List<LocalDate> diasLaborables = diasLaborablesEntre(inicioPerfil, fin);
+
+        // Horas registradas
+        Map<LocalDate, Double> horasPorFecha = new HashMap<>();
+        partes_trabajo_repo.findHorasPorPerfilYFecha(inicioPerfil, fin)
+                .forEach(row -> horasPorFecha.put(
+                        (LocalDate) row[1],
+                        ((Number) row[2]).doubleValue()));
+
+        // Todas las ausencias históricas del perfil
+        List<Ausencia> ausencias = ausenciaRepo
+                .findByPerfilIdOrderByFechaInicioDesc(perfilId);
+
+        // Conjunto completo de días justificados
+        Set<LocalDate> diasJustificados = ausencias.stream()
+                .flatMap(a -> a.getFechaInicio()
+                        .datesUntil(a.getFechaFin().plusDays(1)))
+                .collect(Collectors.toSet());
+
+        List<String> diasSin = diasLaborables.stream()
+                .filter(d -> !horasPorFecha.containsKey(d))
+                .filter(d -> !diasJustificados.contains(d))
+                .map(d -> d.format(FMT))
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> diasIncompletos = diasLaborables.stream()
+                .filter(d -> horasPorFecha.containsKey(d)
+                        && horasPorFecha.get(d) < 8.0)
+                .filter(d -> !diasJustificados.contains(d))
+                .map(d -> {
+                    double h = horasPorFecha.get(d);
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("fecha", d.format(FMT));
+                    entry.put("horas", h % 1 == 0
+                            ? String.valueOf((int) h)
+                            : String.valueOf(h));
+                    return entry;
+                })
+                .collect(Collectors.toList());
+
+        List<Map<String, Object>> ausenciasDto = ausencias.stream()
+                .map(a -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id",            a.getId());
+                    m.put("tipo",          a.getTipo().name());
+                    m.put("fechaInicio",   a.getFechaInicio().format(FMT));
+                    m.put("fechaFin",      a.getFechaFin().format(FMT));
+                    m.put("observaciones", a.getObservaciones());
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> resultado = new LinkedHashMap<>();
+        resultado.put("nombre",           p.getApellidos() + " " + p.getName());
+        resultado.put("perfilId",         perfilId.toString());
+        resultado.put("totalLaborables",  diasLaborables.size());
+        resultado.put("diasSin",          diasSin);
+        resultado.put("totalSin",         diasSin.size());
+        resultado.put("diasIncompletos",  diasIncompletos);
+        resultado.put("totalIncompletos", diasIncompletos.size());
+        resultado.put("ausencias",        ausenciasDto);
         return resultado;
     }
 

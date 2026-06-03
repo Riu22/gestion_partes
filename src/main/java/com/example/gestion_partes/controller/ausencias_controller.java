@@ -58,4 +58,12 @@ public class ausencias_controller {
                 ausenciasService.getDeUsuario(UUID.fromString(perfilId))
         );
     }
+    @GetMapping("/laborales/perfil/{perfilId}/historial")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<Map<String, Object>> getHistorial(
+            @PathVariable String perfilId) {
+        return ResponseEntity.ok(
+                ausenciasService.getHistorialPerfil(UUID.fromString(perfilId))
+        );
+    }
 }
