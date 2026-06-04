@@ -184,6 +184,7 @@ CREATE INDEX idx_ausencias_obra          ON public.ausencias         USING btree
 CREATE INDEX idx_partes_trabajo_informe_obra ON public.partes_trabajo (point_obra_id, fecha);
 CREATE INDEX idx_partes_trabajo_informe_usuario ON public.partes_trabajo (usuario_id, fecha);
 CREATE INDEX idx_ausencias_solapamiento     ON public.ausencias (perfil_id, fecha_inicio, fecha_fin);
+CREATE INDEX idx_partes_trabajo_fecha   ON public.partes_trabajo (fecha);
 -- =============================================
 -- FUNCIONES Y TRIGGERS
 -- =============================================

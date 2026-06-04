@@ -74,6 +74,7 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             "p.apellidos as apellidos, " +
             "p.grupo_profesional as grupo_profesional, " +
             "o.nombre as obra_nombre, " +
+            "pt.point_obra_id as obraId, " +
             "pt.fecha as fecha, " +
             "pt.especialidad as especialidad, " +
             "(pt.horas_normales + pt.horas_extra) as horas_totales " +
@@ -88,36 +89,45 @@ public interface partes_trabajo_repo extends JpaRepository<partes_trabajo, Long>
             @Param("hasta") LocalDate hasta
     );
 
-    @Query(value = "SELECT pt.id as parteId, " +
-            "p.codigo as codigo, " +
-            "p.nombre as nombre, " +
-            "p.apellidos as apellidos, " +
-            "p.grupo_profesional as grupo_profesional, " +
-            "o.nombre as obra_nombre, " +
-            "pt.fecha as fecha, " +
-            "pt.especialidad as especialidad, " +
-            "(pt.horas_normales + pt.horas_extra) as horas_totales " +
-            "FROM partes_trabajo pt " +
-            "JOIN perfiles p ON pt.usuario_id = p.id " +
-            "JOIN obras o ON pt.point_obra_id = o.id " +
-            "WHERE pt.fecha BETWEEN :desde AND :hasta " +
-            "AND (" +
-            "  o.id IN :obraIds " +
-            "  OR p.jefe_directo_id = :jefeId " +
-            "  OR EXISTS (" +
-            "    SELECT 1 FROM perfiles jefe_intermedio " +
-                    "    WHERE jefe_intermedio.id = p.jefe_directo_id " +
-                    "    AND jefe_intermedio.jefe_directo_id = :jefeId" +
-                    "  )" +
-                    ") " +
-                    "AND o.activa = true " +
-                    "ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC",
-    nativeQuery = true)
+    /**
+     * Sustituye el EXISTS correlacionado por un LEFT JOIN, evitando
+     * una subquery por fila cuando la tabla crezca.
+     *
+     * nivel2 resuelve el segundo nivel jerárquico (subordinados de encargados):
+     *   p.jefe_directo_id → nivel2.id → nivel2.jefe_directo_id = :jefeId
+     */
+    @Query(value = """
+            SELECT pt.id            AS parteId,
+                   p.codigo         AS codigo,
+                   p.nombre         AS nombre,
+                   p.apellidos      AS apellidos,
+                   p.grupo_profesional AS grupo_profesional,
+                   o.nombre         AS obra_nombre,
+                   pt.point_obra_id AS obraId,
+                   pt.fecha         AS fecha,
+                   pt.especialidad  AS especialidad,
+                   (pt.horas_normales + pt.horas_extra) AS horas_totales
+            FROM partes_trabajo pt
+            JOIN perfiles p  ON pt.usuario_id    = p.id
+            JOIN obras    o  ON pt.point_obra_id = o.id
+            -- Segundo nivel jerárquico resuelto con JOIN en lugar de EXISTS correlacionado
+            LEFT JOIN perfiles nivel2
+                   ON p.jefe_directo_id        = nivel2.id
+                  AND nivel2.jefe_directo_id   = :jefeId
+            WHERE pt.fecha BETWEEN :desde AND :hasta
+              AND o.activa = true
+              AND (
+                  o.id                 IN :obraIds
+                  OR p.jefe_directo_id  = :jefeId
+                  OR nivel2.id         IS NOT NULL
+              )
+            ORDER BY p.apellidos ASC, p.nombre ASC, o.nombre ASC, pt.fecha ASC
+            """, nativeQuery = true)
     List<contabilidad_detalle_dto> getDetalleContabilidadPorObras(
-            @Param("desde") LocalDate desde,
-            @Param("hasta") LocalDate hasta,
-            @Param("obraIds") List<Long> obraIds,
-            @Param("jefeId") UUID jefeId        // ← nuevo parámetro
+            @Param("desde")   LocalDate   desde,
+            @Param("hasta")   LocalDate   hasta,
+            @Param("obraIds") List<Long>  obraIds,
+            @Param("jefeId")  UUID        jefeId
     );
 
     @Query("SELECT MIN(p.fecha) FROM partes_trabajo p")

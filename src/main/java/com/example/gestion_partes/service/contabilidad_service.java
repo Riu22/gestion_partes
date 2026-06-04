@@ -3,7 +3,6 @@ package com.example.gestion_partes.service;
 import com.example.gestion_partes.dto.contabilidad_detalle_dto;
 import com.example.gestion_partes.dto.quincena_dto;
 import com.example.gestion_partes.model.Ausencia;
-import com.example.gestion_partes.model.AusenciaTipo;
 import com.example.gestion_partes.model.perfil;
 import com.example.gestion_partes.model.user_rol;
 import com.example.gestion_partes.repo.AusenciaRepo;
@@ -22,8 +21,13 @@ import java.util.stream.Collectors;
 @Service
 public class contabilidad_service {
 
-    private static final String OBRA_LUM        = "OFICINA LUM/ALMACÉN LUM";
-    private static final String BASE_URL_PARTE  = "/partes/";
+    private static final String OBRA_LUM       = "OFICINA LUM/ALMACÉN LUM";
+    private static final String BASE_URL_PARTE = "/partes/";
+
+    // Centinelas para evitar IN () vacío en SQL cuando las colecciones están vacías.
+    private static final String       CODIGO_CENTINELA = "__VACIO__";
+    private static final UUID         UUID_CENTINELA   =
+            UUID.fromString("00000000-0000-0000-0000-000000000000");
 
     private static final Set<MonthDay> FESTIVOS_FIJOS = Set.of(
             MonthDay.of(1,  1), MonthDay.of(1,  6),
@@ -40,35 +44,62 @@ public class contabilidad_service {
 
     private record AusenciaDia(String tipo, Long obraId) {}
 
+    private static final class FilaContabilidad {
+        final String codigo;
+        final String operario;
+        final String obra;
+        final String categoriaProfesional;
+        final Map<String, Map<String, Object>> horasPorDia    = new LinkedHashMap<>();
+        final Map<String, String>              ausenciasPorDia = new LinkedHashMap<>();
+        double totalHoras = 0.0;
+
+        FilaContabilidad(String codigo, String operario,
+                         String obra,  String categoriaProfesional) {
+            this.codigo               = codigo;
+            this.operario             = operario;
+            this.obra                 = obra;
+            this.categoriaProfesional = categoriaProfesional;
+        }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("codigo",               codigo);
+            m.put("operario",             operario);
+            m.put("obra",                 obra);
+            m.put("categoria_profesional",categoriaProfesional);
+            m.put("horas_por_dia",        horasPorDia);
+            m.put("total_horas",          totalHoras);
+            m.put("ausencias_por_dia",    ausenciasPorDia);
+            return m;
+        }
+    }
+
     // ── API pública ───────────────────────────────────────────────────────────
 
     public List<quincena_dto> getResumenQuincena(LocalDate desde, LocalDate hasta) {
         return partesRepo.getResumenQuincena(desde, hasta);
     }
 
-    /** Administración: ve todo sin filtro de obras ni de jefe. */
     public List<Map<String, Object>> getDetalleContabilidad(
             LocalDate desde, LocalDate hasta) {
-        return procesarDatos(
-                partesRepo.getDetalleContabilidad(desde, hasta),
-                desde, hasta, null, null);
+        long t0 = System.currentTimeMillis();
+        List<contabilidad_detalle_dto> datos = partesRepo.getDetalleContabilidad(desde, hasta);
+        System.out.printf("[PERF] query principal:     %4d ms  (%d filas)%n",
+                System.currentTimeMillis() - t0, datos.size());
+        return procesarDatos(datos, desde, hasta, null, null, t0);
     }
 
-    /**
-     * Vista de jefe de obra: filtra por sus obras PERO además incluye
-     * todo lo que ha hecho su personal directo (jefe_directo_id = jefeId)
-     * aunque sea en obras ajenas.
-     *
-     * @param jefeId  UUID del jefe que hace la consulta (null si es admin/gestión)
-     */
     public List<Map<String, Object>> getDetalleContabilidadPorObras(
             LocalDate desde, LocalDate hasta, List<Long> obraIds, UUID jefeId) {
-        return procesarDatos(
-                partesRepo.getDetalleContabilidadPorObras(desde, hasta, obraIds, jefeId),
-                desde, hasta, obraIds, jefeId);
+        long t0 = System.currentTimeMillis();
+        List<contabilidad_detalle_dto> datos =
+                partesRepo.getDetalleContabilidadPorObras(desde, hasta, obraIds, jefeId);
+        System.out.printf("[PERF] query principal:     %4d ms  (%d filas)%n",
+                System.currentTimeMillis() - t0, datos.size());
+        return procesarDatos(datos, desde, hasta, obraIds, jefeId, t0);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers de fecha ──────────────────────────────────────────────────────
 
     private boolean esFestivo(LocalDate fecha) {
         return FESTIVOS_FIJOS.contains(MonthDay.from(fecha));
@@ -96,19 +127,20 @@ public class contabilidad_service {
         return OBRA_LUM;
     }
 
-    private boolean esFilaDeVacacionesConObra(
-            String nombreObra,
-            perfil p,
-            Map<UUID, Map<LocalDate, AusenciaDia>> ausenciasFecha,
-            Map<Long, String> nombreObras) {
+    private String buildNombreOperario(perfil p) {
+        String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
+        String nom = p.getName()      != null ? p.getName()                    : "S/N";
+        return aps.isEmpty() ? nom : aps + ", " + nom;
+    }
 
-        if (p == null) return false;
-        return ausenciasFecha
-                .getOrDefault(p.getId(), Collections.emptyMap())
-                .values().stream()
-                .anyMatch(ad -> "VACACIONES".equals(ad.tipo())
-                        && ad.obraId() != null
-                        && nombreObras.getOrDefault(ad.obraId(), "").equals(nombreObra));
+    private String buildNombreOperario(contabilidad_detalle_dto d) {
+        String aps = d.getApellidos() != null ? d.getApellidos().toUpperCase() : "";
+        String nom = d.getNombre()    != null ? d.getNombre()                  : "S/N";
+        return aps.isEmpty() ? nom : aps + ", " + nom;
+    }
+
+    private String buildCategoria(String grupoProfesional) {
+        return grupoProfesional != null ? grupoProfesional : "No asignado";
     }
 
     // ── Procesado principal ───────────────────────────────────────────────────
@@ -118,55 +150,76 @@ public class contabilidad_service {
             LocalDate desde,
             LocalDate hasta,
             List<Long> obraIds,
-            UUID jefeId) {
+            UUID jefeId,
+            long t0) {
 
         boolean esAdministracion = (obraIds == null);
 
-        // ── 0. Resolver personal propio del jefe ──────────────────────────────
-        //      Incluye subordinados directos Y subordinados de sus encargados
-        //      (dos niveles, igual que la query SQL).
+        // ── 0. Subordinados ───────────────────────────────────────────────────
         Set<String> codigosPersonalPropio = new HashSet<>();
         Set<UUID>   idsPersonalPropio     = new HashSet<>();
 
         if (jefeId != null) {
-            // Nivel 1: jefe_directo_id = jefeId  (operarios/encargados directos)
-            List<perfil> nivel1 = perfilRepo.findByJefeDirecto_Id(jefeId);
-            for (perfil p : nivel1) {
+            for (perfil p : perfilRepo.findSubordinadosDosNiveles(jefeId)) {
                 if (p.getCodigo() != null) codigosPersonalPropio.add(p.getCodigo());
                 idsPersonalPropio.add(p.getId());
-
-                // Nivel 2: personal cuyo jefe_directo es un encargado de nivel 1
-                if (p.getRol() == user_rol.ENCARGADO) {
-                    for (perfil p2 : perfilRepo.findByJefeDirecto_Id(p.getId())) {
-                        if (p2.getCodigo() != null) codigosPersonalPropio.add(p2.getCodigo());
-                        idsPersonalPropio.add(p2.getId());
-                    }
-                }
             }
         }
+        System.out.printf("[PERF] paso 0 subordinados: %4d ms%n",
+                System.currentTimeMillis() - t0);
 
-        // ── 1. Cargar perfiles indexados ──────────────────────────────────────
-        List<perfil> todosPerfiles = perfilRepo.findAll();
+        // ── 1. Perfiles — un solo round-trip ──────────────────────────────────
+        //
+        // findParaContabilidad() fusiona los tres casos anteriores:
+        //   a) perfiles que aparecen en partes (por código)
+        //   b) subordinados del jefe (por UUID)
+        //   c) todos los OPERARIO/ENCARGADO activos (solo administración)
+        //
+        // Se usan centinelas cuando las colecciones están vacías para evitar
+        // que Hibernate genere "IN ()" inválido en SQL.
 
-        Map<String, perfil> codigoAPerfil = new HashMap<>(todosPerfiles.size() * 2);
-        Map<UUID,   perfil> idAPerfil     = new HashMap<>(todosPerfiles.size() * 2);
-        Set<String> codigosConParte       = new HashSet<>();
+        Set<String> codigosEnDatos = new HashSet<>();
+        for (contabilidad_detalle_dto d : datos) {
+            if (d.getCodigo() != null) codigosEnDatos.add(d.getCodigo());
+        }
 
+        Collection<String> codigosParam = codigosEnDatos.isEmpty()
+                ? List.of(CODIGO_CENTINELA) : codigosEnDatos;
+        Collection<UUID> idsParam = idsPersonalPropio.isEmpty()
+                ? List.of(UUID_CENTINELA)   : idsPersonalPropio;
+
+        List<perfil> todosPerfiles = perfilRepo.findParaContabilidad(
+                codigosParam,
+                idsParam,
+                List.of(user_rol.OPERARIO, user_rol.ENCARGADO),
+                esAdministracion
+        );
+
+        int cap = todosPerfiles.size() * 2;
+        Map<String, perfil> codigoAPerfil = new HashMap<>(cap);
+        Map<UUID,   perfil> idAPerfil     = new HashMap<>(cap);
         for (perfil p : todosPerfiles) {
             if (p.getCodigo() != null) codigoAPerfil.put(p.getCodigo(), p);
             if (p.getId()     != null) idAPerfil    .put(p.getId(),     p);
         }
+        System.out.printf("[PERF] paso 1 perfiles:     %4d ms  (%d perfiles)%n",
+                System.currentTimeMillis() - t0, todosPerfiles.size());
 
-        // ── 1b. Nombres de obras ──────────────────────────────────────────────
-        Map<Long, String> nombreObras = obrasRepo.findAll()
-                .stream()
-                .collect(Collectors.toMap(
-                        o -> o.getId(),
-                        o -> o.getNombre()
-                ));
+        // ── 1b. Obras ─────────────────────────────────────────────────────────
+        //
+        // Ya NO se precarga el mapa de obras desde los partes: obra_nombre
+        // llega directamente en el DTO via JOIN en la query principal.
+        //
+        // El mapa se rellena más adelante (paso 4) solo con las obras
+        // referenciadas en ausencias que tengan obra_id no nulo.
+        // Esto elimina el round-trip anterior de ~36 ms.
+        Map<Long, String> nombreObras = new HashMap<>();
+        System.out.printf("[PERF] paso 1b obras:       %4d ms  (diferido al paso 4)%n",
+                System.currentTimeMillis() - t0);
 
-        // ── 2. Agrupar filas del query principal ──────────────────────────────
-        Map<String, Map<String, Object>> mapaAgrupado = new LinkedHashMap<>();
+        // ── 2. Agrupar filas ──────────────────────────────────────────────────
+        Map<String, FilaContabilidad> mapaAgrupado = new LinkedHashMap<>();
+        Set<String> codigosConParte = new HashSet<>();
 
         for (contabilidad_detalle_dto d : datos) {
             String nombreObraRaw   = d.getObra_nombre() != null ? d.getObra_nombre() : "Sin Obra";
@@ -180,25 +233,12 @@ public class contabilidad_service {
 
             codigosConParte.add(codigoUser);
 
-            mapaAgrupado.computeIfAbsent(clave, k -> {
-                String aps = d.getApellidos() != null ? d.getApellidos().toUpperCase() : "";
-                String nom = d.getNombre()    != null ? d.getNombre()                  : "S/N";
-
-                Map<String, Object> fila = new LinkedHashMap<>();
-                fila.put("codigo",               codigoUser);
-                fila.put("operario",             aps.isEmpty() ? nom : aps + ", " + nom);
-                fila.put("obra",                 nombreObraVista);
-                fila.put("categoria_profesional",
-                        d.getGrupo_profesional() != null
-                                ? d.getGrupo_profesional() : "No asignado");
-                fila.put("horas_por_dia",        new LinkedHashMap<String, Object>());
-                fila.put("total_horas",          0.0);
-                return fila;
-            });
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> horasDia =
-                    (Map<String, Object>) mapaAgrupado.get(clave).get("horas_por_dia");
+            FilaContabilidad fila = mapaAgrupado.computeIfAbsent(clave, k ->
+                    new FilaContabilidad(
+                            codigoUser,
+                            buildNombreOperario(d),
+                            nombreObraVista,
+                            buildCategoria(d.getGrupo_profesional())));
 
             LocalDate fechaKey = d.getFecha();
             double    horas    = d.getHoras_totales() != null ? d.getHoras_totales() : 0.0;
@@ -206,63 +246,60 @@ public class contabilidad_service {
 
             if (fechaKey != null) {
                 String fechaStr = fechaKey.toString();
-                if (horasDia.containsKey(fechaStr)) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> existing = (Map<String, Object>) horasDia.get(fechaStr);
+                Map<String, Object> existing = fila.horasPorDia.get(fechaStr);
+                if (existing != null) {
                     double acum = ((Number) existing.get("horas")).doubleValue() + horas;
                     existing.put("horas", acum);
                 } else {
-                    horasDia.put(fechaStr, entradaDia(horas, parteId));
+                    fila.horasPorDia.put(fechaStr, entradaDia(horas, parteId));
                 }
             }
-            mapaAgrupado.get(clave)
-                    .merge("total_horas", horas, (a, b) -> (double) a + (double) b);
+            fila.totalHoras += horas;
         }
+        System.out.printf("[PERF] paso 2 agrupado:     %4d ms  (%d filas agrupadas)%n",
+                System.currentTimeMillis() - t0, mapaAgrupado.size());
 
-        // ── 3. Inyectar operarios sin partes ──────────────────────────────────
-        //   - Administración: todos los operarios/encargados activos
-        //   - Jefe de obra:   solo su personal propio (codigosPersonalPropio)
+        // ── 3. Inyectar sin partes ────────────────────────────────────────────
         boolean inyectarSinPartes = esAdministracion || !codigosPersonalPropio.isEmpty();
 
         if (inyectarSinPartes) {
-            for (perfil p : todosPerfiles) {
+            for (perfil p : codigoAPerfil.values()) {
                 if (p.getCodigo() == null)                                   continue;
                 if (p.getRol() != user_rol.OPERARIO
                         && p.getRol() != user_rol.ENCARGADO)                 continue;
                 if (!p.isActivo())                                           continue;
                 if (codigosConParte.contains(p.getCodigo()))                 continue;
-
-                // En vista de jefe: solo inyectamos su personal propio
                 if (!esAdministracion
                         && !codigosPersonalPropio.contains(p.getCodigo()))   continue;
 
                 String claveSinParte = p.getCodigo() + "|__SIN_PARTE__";
-                String aps = p.getApellidos() != null ? p.getApellidos().toUpperCase() : "";
-                String nom = p.getName()      != null ? p.getName()                    : "S/N";
-
-                Map<String, Object> fila = new LinkedHashMap<>();
-                fila.put("codigo",               p.getCodigo());
-                fila.put("operario",             aps.isEmpty() ? nom : aps + ", " + nom);
-                fila.put("obra",                 "");
-                fila.put("categoria_profesional",
-                        p.getGrupo_profesional() != null
-                                ? p.getGrupo_profesional() : "No asignado");
-                fila.put("horas_por_dia",        new LinkedHashMap<>());
-                fila.put("total_horas",          0.0);
-                fila.put("ausencias_por_dia",    new LinkedHashMap<String, String>());
-                mapaAgrupado.put(claveSinParte, fila);
+                mapaAgrupado.putIfAbsent(claveSinParte,
+                        new FilaContabilidad(
+                                p.getCodigo(),
+                                buildNombreOperario(p),
+                                "",
+                                buildCategoria(p.getGrupo_profesional())));
             }
         }
+        System.out.printf("[PERF] paso 3 sin partes:   %4d ms%n",
+                System.currentTimeMillis() - t0);
 
-        // ── 4. Pre-indexar ausencias ──────────────────────────────────────────
-        //   - Administración: todas las ausencias del rango
-        //   - Jefe de obra:   solo las de su personal propio
-        List<Ausencia> ausenciasRango = ausenciaRepo.findTodasEnRango(desde, hasta);
+        // ── 4. Ausencias ──────────────────────────────────────────────────────
+        List<Ausencia> ausenciasRango = ausenciaRepo.findEnRangoOptional(
+                desde, hasta, idsPersonalPropio, esAdministracion);
+        System.out.printf("[PERF] paso 4a ausencias BD:%4d ms  (%d ausencias)%n",
+                System.currentTimeMillis() - t0, ausenciasRango.size());
 
-        if (!esAdministracion && !idsPersonalPropio.isEmpty()) {
-            ausenciasRango = ausenciasRango.stream()
-                    .filter(a -> idsPersonalPropio.contains(a.getPerfilId()))
-                    .collect(Collectors.toList());
+        // Carga obras solo para las ausencias que referencian una obra_id.
+        // Sustituye el paso 1b anterior, con la ventaja de que en quincenas
+        // sin ausencias con obra no se hace ningún round-trip adicional.
+        Set<Long> obraIdsAusencias = ausenciasRango.stream()
+                .map(Ausencia::getObraId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!obraIdsAusencias.isEmpty()) {
+            obrasRepo.findAllById(obraIdsAusencias)
+                    .forEach(o -> nombreObras.put(o.getId(), o.getNombre()));
         }
 
         Map<UUID, Map<LocalDate, AusenciaDia>> ausenciasFecha = new HashMap<>();
@@ -270,7 +307,6 @@ public class contabilidad_service {
         for (Ausencia a : ausenciasRango) {
             Map<LocalDate, AusenciaDia> porFecha =
                     ausenciasFecha.computeIfAbsent(a.getPerfilId(), id -> new HashMap<>());
-
             for (LocalDate d = a.getFechaInicio();
                  !d.isAfter(a.getFechaFin()); d = d.plusDays(1)) {
                 if (esLaborable(d)) {
@@ -279,9 +315,12 @@ public class contabilidad_service {
                 }
             }
         }
+        System.out.printf("[PERF] paso 4b ausencias idx:%4d ms%n",
+                System.currentTimeMillis() - t0);
 
         // ── 5. Inyectar filas de ausencia ─────────────────────────────────────
-        //   Igual que antes, pero en vista de jefe también aplica para su personal.
+        Map<UUID, Set<String>> obrasVacacionesPorPerfil = new HashMap<>();
+
         if (esAdministracion || !codigosPersonalPropio.isEmpty()) {
             for (Map.Entry<UUID, Map<LocalDate, AusenciaDia>> entry
                     : ausenciasFecha.entrySet()) {
@@ -294,63 +333,66 @@ public class contabilidad_service {
                         .map(ad -> resolverNombreObra(ad, nombreObras))
                         .collect(Collectors.toSet());
 
-                for (String nombreObra : obrasNecesarias) {
-                    String claveObra = p.getCodigo() + "|" + nombreObra;
-
-                    if (!mapaAgrupado.containsKey(claveObra)) {
-                        String aps = p.getApellidos() != null
-                                ? p.getApellidos().toUpperCase() : "";
-                        String nom = p.getName() != null ? p.getName() : "S/N";
-
-                        Map<String, Object> filaObra = new LinkedHashMap<>();
-                        filaObra.put("codigo",               p.getCodigo());
-                        filaObra.put("operario",             aps.isEmpty() ? nom : aps + ", " + nom);
-                        filaObra.put("obra",                 nombreObra);
-                        filaObra.put("categoria_profesional",
-                                p.getGrupo_profesional() != null
-                                        ? p.getGrupo_profesional() : "No asignado");
-                        filaObra.put("horas_por_dia",        new LinkedHashMap<>());
-                        filaObra.put("total_horas",          0.0);
-                        mapaAgrupado.put(claveObra, filaObra);
-                    }
+                Set<String> obrasVac = entry.getValue().values().stream()
+                        .filter(ad -> "VACACIONES".equals(ad.tipo()) && ad.obraId() != null)
+                        .map(ad -> nombreObras.getOrDefault(ad.obraId(), OBRA_LUM))
+                        .collect(Collectors.toSet());
+                if (!obrasVac.isEmpty()) {
+                    obrasVacacionesPorPerfil.put(perfilId, obrasVac);
                 }
 
+                for (String nombreObra : obrasNecesarias) {
+                    String claveObra = p.getCodigo() + "|" + nombreObra;
+                    mapaAgrupado.computeIfAbsent(claveObra, k ->
+                            new FilaContabilidad(
+                                    p.getCodigo(),
+                                    buildNombreOperario(p),
+                                    nombreObra,
+                                    buildCategoria(p.getGrupo_profesional())));
+                }
                 mapaAgrupado.remove(p.getCodigo() + "|__SIN_PARTE__");
             }
         }
+        System.out.printf("[PERF] paso 5 filas aus.:   %4d ms%n",
+                System.currentTimeMillis() - t0);
 
         // ── 6. Rellenar ausencias_por_dia ─────────────────────────────────────
-        for (Map<String, Object> fila : mapaAgrupado.values()) {
-            fila.putIfAbsent("ausencias_por_dia", new LinkedHashMap<String, String>());
-
-            String obraFila = (String) fila.get("obra");
-            String codigo   = (String) fila.get("codigo");
-            perfil p        = codigoAPerfil.get(codigo);
+        for (FilaContabilidad fila : mapaAgrupado.values()) {
+            String obraFila = fila.obra;
+            perfil p        = codigoAPerfil.get(fila.codigo);
+            if (p == null) continue;
 
             boolean esFilaAusencia = OBRA_LUM.equals(obraFila)
-                    || esFilaDeVacacionesConObra(obraFila, p, ausenciasFecha, nombreObras);
+                    || obrasVacacionesPorPerfil
+                    .getOrDefault(p.getId(), Collections.emptySet())
+                    .contains(obraFila);
 
             if (!esFilaAusencia) continue;
-            if (p == null)       continue;
 
             Map<LocalDate, AusenciaDia> ausFecha =
                     ausenciasFecha.getOrDefault(p.getId(), Collections.emptyMap());
 
-            @SuppressWarnings("unchecked")
-            Map<String, String> ausenciasPorDia =
-                    (Map<String, String>) fila.get("ausencias_por_dia");
-
             for (LocalDate dia = desde; !dia.isAfter(hasta); dia = dia.plusDays(1)) {
                 AusenciaDia ad = ausFecha.get(dia);
                 if (ad == null) continue;
-
                 String obraEsperada = resolverNombreObra(ad, nombreObras);
                 if (obraEsperada.equals(obraFila)) {
-                    ausenciasPorDia.put(dia.toString(), ad.tipo());
+                    fila.ausenciasPorDia.put(dia.toString(), ad.tipo());
                 }
             }
         }
+        System.out.printf("[PERF] paso 6 aus. por dia: %4d ms%n",
+                System.currentTimeMillis() - t0);
 
-        return new ArrayList<>(mapaAgrupado.values());
+        // ── 7. Convertir ──────────────────────────────────────────────────────
+        List<Map<String, Object>> resultado = mapaAgrupado.values().stream()
+                .map(FilaContabilidad::toMap)
+                .collect(Collectors.toList());
+        System.out.printf("[PERF] paso 7 convertir:    %4d ms  (%d filas resultado)%n",
+                System.currentTimeMillis() - t0, resultado.size());
+        System.out.printf("[PERF] ── total procesarDatos: %d ms ──%n",
+                System.currentTimeMillis() - t0);
+
+        return resultado;
     }
 }
