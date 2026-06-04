@@ -1,3 +1,8 @@
+/* Servicio que genera documentos PDF de partes de trabajo.
+   Permite crear PDFs individuales por obra+especialidad, por operario+especialidad,
+   o un único PDF con todas las obras. También soporta descarga en ZIP con múltiples PDFs.
+   Usa la librería iText (com.lowagie.text) para construir los PDFs con formato profesional:
+   cabeceras, tablas, colores, trabajos extra e imágenes de firma. */
 package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.model.partes_trabajo;
@@ -27,7 +32,7 @@ public class pdf_service {
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    // ── Colores ───────────────────────────────────────────────────────────────
+    /* Colores corporativos para los distintos elementos del PDF. */
     private static final Color COLOR_HEADER_ELEC   = new Color(255, 185, 0);
     private static final Color COLOR_HEADER_FONT   = new Color(13,  71,  161);
     private static final Color COLOR_HEADER_OP     = new Color(232, 240, 255);
@@ -41,13 +46,14 @@ public class pdf_service {
     private static final Color COLOR_FIRMA_BG      = new Color(240, 253, 244);
     private static final Color COLOR_FIRMA_BORDER  = new Color(134, 239, 172);
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Clase interna: cabecera dinámica + pie de página
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Clase interna que maneja la cabecera dinámica (nombre de obra/operario) y el pie de página (número de página).
+       Se usa como evento de página de iText para que aparezca en todas las páginas automáticamente. */
     private static class CabeceraPiePaginaEvent extends PdfPageEventHelper {
 
         String tituloActual = "";
 
+        /* Se ejecuta al finalizar cada página: dibuja la cabecera (título) y el pie (número de página) usando el
+           ContentByte directo del PdfWriter. */
         @Override
         public void onEndPage(PdfWriter w, Document d) {
             try {
@@ -75,9 +81,9 @@ public class pdf_service {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ZIP: un PDF por cada combinación obra + especialidad
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Genera un archivo ZIP que contiene un PDF por cada combinación de obra + especialidad.
+       Recibe listas de IDs de obra y perfiles (opcionales), y un rango de fechas.
+       Filtra los partes según esos criterios, los agrupa por obra+especialidad y genera un PDF para cada grupo. */
     public byte[] generarZipPartes(
             List<Long>   obraIds,
             List<String> perfilIds,
@@ -86,6 +92,7 @@ public class pdf_service {
 
         List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
+        /* Agrupa los partes por obra + especialidad usando un LinkedHashMap que preserva el orden de inserción. */
         Map<String, List<partes_trabajo>> porObraEsp = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
@@ -106,6 +113,7 @@ public class pdf_service {
                 String esp = primero.getEspecialidad() != null
                         ? primero.getEspecialidad().name() : "SIN";
 
+                /* Determina el sufijo del nombre del archivo según la especialidad. */
                 String sufijo = switch (esp) {
                     case "ELECTRICIDAD" -> "electricidad";
                     case "FONTANERIA"   -> "fontaneria";
@@ -123,9 +131,8 @@ public class pdf_service {
         return zipBaos.toByteArray();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // ZIP: un PDF por cada combinación operario + especialidad
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Genera un ZIP con un PDF por cada combinación de operario + especialidad (agrupado por persona).
+       Similar a generarZipPartes pero agrupando por operario en lugar de por obra. */
     public byte[] generarZipPartesPorOperario(
             List<Long>   obraIds,
             List<String> perfilIds,
@@ -134,6 +141,7 @@ public class pdf_service {
 
         List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
+        /* Agrupa los partes por operario + especialidad. */
         Map<String, List<partes_trabajo>> porOperarioEsp = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -172,9 +180,8 @@ public class pdf_service {
         return zipBaos.toByteArray();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PDF único — todas las obras en un solo archivo
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Genera un único PDF con todas las obras. Agrupa por obra y dentro de cada obra por especialidad.
+       Cada grupo aparece en una página diferente con su cabecera correspondiente. */
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
             List<String> perfilIds,
@@ -183,6 +190,7 @@ public class pdf_service {
 
         List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
+        /* Agrupa los partes por obra y dentro de cada obra por especialidad. */
         Map<Long, Map<String, List<partes_trabajo>>> porObraEsp = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
@@ -206,6 +214,7 @@ public class pdf_service {
         for (Map.Entry<Long, Map<String, List<partes_trabajo>>> obraEntry : porObraEsp.entrySet()) {
             Map<String, List<partes_trabajo>> porEsp = obraEntry.getValue();
 
+            /* Ordena las especialidades: primero ELECTRICIDAD, luego FONTANERIA, luego el resto. */
             List<String> ordenEsp = new ArrayList<>();
             if (porEsp.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
             if (porEsp.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
@@ -223,14 +232,14 @@ public class pdf_service {
             }
         }
 
+        /* Si no hay partes para los filtros, muestra un mensaje de "sin datos". */
         if (porObraEsp.isEmpty()) agregarVacio(doc);
         doc.close();
         return baos.toByteArray();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PDF de un grupo obra + especialidad
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Genera un PDF para un grupo específico de obra + especialidad.
+       Crea un documento nuevo, añade cabecera y la tabla con los partes del grupo. */
     private byte[] generarPdfGrupo(
             String nombreObra,
             String especialidad,
@@ -250,9 +259,8 @@ public class pdf_service {
         return baos.toByteArray();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PDF de un operario + especialidad
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Genera un PDF para un operario concreto y una especialidad.
+       Similar a generarPdfGrupo pero con el nombre del operario como título. */
     private byte[] generarPdfOperarioEsp(
             String nombreOp,
             String especialidad,
@@ -272,9 +280,8 @@ public class pdf_service {
         return baos.toByteArray();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Añade la cabecera de sección y las tablas por operario
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Añade la cabecera de sección (nombre de obra + especialidad) y las tablas de cada operario al documento.
+       Agrupa los partes por operario y ordena cada grupo por fecha descendente. */
     private void agregarGrupoAlDocumento(
             Document doc,
             String nombreObra,
@@ -287,12 +294,14 @@ public class pdf_service {
             tituloSeccion += "  ·  " + labelEspecialidad(especialidad);
         }
 
+        /* Crea una tabla de 1 columna para la cabecera de la sección. */
         PdfPTable tablaHeader = new PdfPTable(1);
         tablaHeader.setWidthPercentage(100);
         tablaHeader.setSpacingBefore(12);
         tablaHeader.setSpacingAfter(0);
         tablaHeader.setKeepTogether(true);
 
+        /* Color de fondo diferente según especialidad: amarillo para electricidad, azul para fontanería. */
         Color bgHeader = especialidad.equals("FONTANERIA") ? COLOR_HEADER_FONT : COLOR_HEADER_ELEC;
         Font fHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, COLOR_TEXTO_BLANCO);
         PdfPCell celdaHeader = new PdfPCell(new Phrase(tituloSeccion, fHeader));
@@ -302,6 +311,7 @@ public class pdf_service {
         tablaHeader.addCell(celdaHeader);
         doc.add(tablaHeader);
 
+        /* Agrupa los partes por operario (UUID) y ordena cada grupo por fecha descendente (más reciente primero). */
         Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -311,14 +321,15 @@ public class pdf_service {
         porOperario.values().forEach(lista ->
                 lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
 
+        /* Añade una tabla por cada operario al documento. */
         for (List<partes_trabajo> partesOp : porOperario.values()) {
             doc.add(tablaOperario(partesOp));
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Tabla de un operario — incluye trabajos extra y firma
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Crea la tabla HTML de un operario con sus partes de trabajo. La tabla tiene 4 columnas:
+       fecha, horas, descripción y un separador invisible.
+       Incluye: cabecera del operario, filas de cada parte, total de horas, trabajos extra (si los hay) y firma. */
     private PdfPTable tablaOperario(List<partes_trabajo> partesOp) throws Exception {
         partes_trabajo primero = partesOp.get(0);
         String nombreOp = primero.getPerfil().getName()
@@ -331,7 +342,7 @@ public class pdf_service {
         tabla.setSpacingAfter(2);
         tabla.setKeepTogether(true);
 
-        // ── Cabecera del operario ─────────────────────────────────────────────
+        /* Fila de cabecera con el nombre del operario (ocupa las 4 columnas). */
         Font fOp = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, COLOR_TEXTO_DARK);
         PdfPCell celdaOp = new PdfPCell(new Phrase("  " + nombreOp, fOp));
         celdaOp.setColspan(4);
@@ -344,7 +355,7 @@ public class pdf_service {
         celdaOp.setBorderWidthRight(0);
         tabla.addCell(celdaOp);
 
-        // ── Filas de partes ───────────────────────────────────────────────────
+        /* Filas de cada parte de trabajo: fecha, horas, descripción. */
         double totalHoras = 0;
         boolean par = false;
         for (partes_trabajo p : partesOp) {
@@ -359,7 +370,7 @@ public class pdf_service {
             totalHoras += p.getHoras_normales();
         }
 
-        // ── Fila total ────────────────────────────────────────────────────────
+        /* Fila de total de horas del operario. */
         String textoTotal = "Total: " + formatHoras(totalHoras);
         Font fTotal = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, COLOR_TEXTO_DARK);
         PdfPCell celdaTotal = new PdfPCell(new Phrase(textoTotal, fTotal));
@@ -374,17 +385,17 @@ public class pdf_service {
         celdaTotal.setBorderWidthRight(0);
         tabla.addCell(celdaTotal);
 
-        // ── Trabajos extra (si los hay en algún parte) ────────────────────────
+        /* Acumula todos los trabajos extra de todos los partes del operario (con su fecha). */
         String trabajosExtraAcumulados = partesOp.stream()
                 .filter(p -> p.getTrabajos_extra() != null && !p.getTrabajos_extra().isBlank())
                 .map(p -> "• [" + FMT.format(p.getFecha()) + "] " + p.getTrabajos_extra().trim())
                 .collect(Collectors.joining("\n"));
 
         if (!trabajosExtraAcumulados.isBlank()) {
-            // Etiqueta
+            /* Etiqueta "Trabajos extra" con fondo amarillo claro. */
             Font fExtraLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
                     new Color(146, 64, 14));
-            PdfPCell celdaExtraLabel = new PdfPCell(new Phrase("⚡ Trabajos extra", fExtraLabel));
+            PdfPCell celdaExtraLabel = new PdfPCell(new Phrase("Trabajos extra", fExtraLabel));
             celdaExtraLabel.setColspan(4);
             celdaExtraLabel.setBackgroundColor(COLOR_EXTRA_BG);
             celdaExtraLabel.setPaddingTop(5);
@@ -398,7 +409,7 @@ public class pdf_service {
             celdaExtraLabel.setBorderWidthRight(0);
             tabla.addCell(celdaExtraLabel);
 
-            // Contenido
+            /* Contenido de los trabajos extra. */
             Font fExtra = FontFactory.getFont(FontFactory.HELVETICA, 8,
                     new Color(92, 45, 14));
             PdfPCell celdaExtra = new PdfPCell(new Phrase(trabajosExtraAcumulados, fExtra));
@@ -416,8 +427,7 @@ public class pdf_service {
             tabla.addCell(celdaExtra);
         }
 
-        // ── Firma ─────────────────────────────────────────────────────────────
-        // Tomamos la firma del parte más reciente que la tenga
+        /* Busca el parte más reciente que tenga una firma (imagen) y la añade si existe. */
         partes_trabajo parteConFirma = partesOp.stream()
                 .filter(p -> p.getFirma_url() != null && !p.getFirma_url().isBlank())
                 .findFirst()
@@ -430,25 +440,24 @@ public class pdf_service {
         return tabla;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Fila de firma dentro de la tabla del operario
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Añade una fila con la imagen de firma dentro de la tabla del operario.
+       Descarga la imagen desde la URL almacenada en el parte de trabajo y la escala para mostrarla.
+       Si no se puede descargar la imagen, muestra un texto indicando que no está disponible. */
     private void agregarFilaFirma(PdfPTable tabla, partes_trabajo parte) {
         try {
-            // Descargar imagen de firma
             byte[] imagenBytes = descargarImagen(parte.getFirma_url());
             if (imagenBytes == null || imagenBytes.length == 0) return;
 
             Image firmaImg = Image.getInstance(imagenBytes);
             firmaImg.scaleToFit(120, 50);
 
-            // Etiqueta
+            /* Etiqueta con el nombre de la persona que firmó. */
             String nombreFirmador = parte.getNombre_firmado() != null
                     ? parte.getNombre_firmado() : "Firmado";
             Font fFirmaLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
                     new Color(20, 83, 45));
             PdfPCell celdaFirmaLabel = new PdfPCell(
-                    new Phrase("✔ Conformidad — " + nombreFirmador, fFirmaLabel));
+                    new Phrase("Conformidad - " + nombreFirmador, fFirmaLabel));
             celdaFirmaLabel.setColspan(4);
             celdaFirmaLabel.setBackgroundColor(COLOR_FIRMA_BG);
             celdaFirmaLabel.setPaddingTop(5);
@@ -462,7 +471,7 @@ public class pdf_service {
             celdaFirmaLabel.setBorderWidthRight(0);
             tabla.addCell(celdaFirmaLabel);
 
-            // Imagen de la firma
+            /* Imagen de la firma escalada. */
             PdfPCell celdaFirmaImg = new PdfPCell(firmaImg, false);
             celdaFirmaImg.setColspan(4);
             celdaFirmaImg.setBackgroundColor(COLOR_FIRMA_BG);
@@ -479,7 +488,7 @@ public class pdf_service {
             tabla.addCell(celdaFirmaImg);
 
         } catch (Exception e) {
-            // Si no se puede cargar la imagen, añadir celda de texto indicando firma no disponible
+            /* Si falla la descarga o carga de la imagen, muestra un texto alternativo en cursiva. */
             try {
                 Font fFirmaError = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, Color.GRAY);
                 String nombreFirmador = parte.getNombre_firmado() != null
@@ -499,9 +508,8 @@ public class pdf_service {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Descarga una imagen desde una URL y devuelve los bytes
-    // ─────────────────────────────────────────────────────────────────────────
+    /* Descarga una imagen desde una URL y devuelve su contenido como array de bytes.
+       Usa un buffer de 8KB para la lectura. Si falla, devuelve null. */
     private byte[] descargarImagen(String urlStr) {
         try {
             URL url = new URL(urlStr);
@@ -519,20 +527,19 @@ public class pdf_service {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers de documento
-    // ─────────────────────────────────────────────────────────────────────────
-
+    /* Crea un documento PDF en formato A4 con márgenes personalizados (36px izquierda/derecha, 65 arriba, 40 abajo). */
     private Document construirDocumento(ByteArrayOutputStream baos) {
         return new Document(PageSize.A4, 36, 36, 65, 40);
     }
 
+    /* Añade el evento de cabecera y pie de página al PdfWriter y devuelve el objeto evento para poder cambiar el título. */
     private CabeceraPiePaginaEvent agregarCabeceraYPie(PdfWriter writer) {
         CabeceraPiePaginaEvent evento = new CabeceraPiePaginaEvent();
         writer.setPageEvent(evento);
         return evento;
     }
 
+    /* Añade la cabecera general del documento: título "Informe de Partes de Trabajo" y el rango de fechas. */
     private void agregarCabeceraDocumento(Document doc, LocalDate desde, LocalDate hasta)
             throws Exception {
         Font fTitulo = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, COLOR_TEXTO_DARK);
@@ -544,12 +551,13 @@ public class pdf_service {
         doc.add(titulo);
 
         Paragraph rango = new Paragraph(
-                "Período: " + FMT.format(desde) + "  →  " + FMT.format(hasta), fSub);
+                "Período: " + FMT.format(desde) + "  ->  " + FMT.format(hasta), fSub);
         rango.setAlignment(Element.ALIGN_CENTER);
         rango.setSpacingAfter(16);
         doc.add(rango);
     }
 
+    /* Añade un mensaje de "sin datos" cuando no hay partes que coincidan con los filtros. */
     private void agregarVacio(Document doc) throws Exception {
         Font f = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 11, Color.GRAY);
         Paragraph p = new Paragraph("No hay partes para los filtros seleccionados.", f);
@@ -558,10 +566,7 @@ public class pdf_service {
         doc.add(p);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers de celdas
-    // ─────────────────────────────────────────────────────────────────────────
-
+    /* Crea una celda de datos estándar en una tabla PDF: recibe texto, color de fondo y alineación. */
     private void agregarCeldaDato(PdfPTable tabla, String texto, Color bg, int align) {
         Font f = FontFactory.getFont(FontFactory.HELVETICA, 9, COLOR_TEXTO_DARK);
         PdfPCell cell = new PdfPCell(new Phrase(texto, f));
@@ -576,10 +581,8 @@ public class pdf_service {
         tabla.addCell(cell);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Utilidades
-    // ─────────────────────────────────────────────────────────────────────────
-
+    /* Filtra los partes de trabajo por obra, perfil y rango de fechas.
+       Si obraIds o perfilIds están vacíos, no filtra por ese criterio. */
     private List<partes_trabajo> filtrar(
             List<Long> obraIds,
             List<String> perfilIds,
@@ -594,6 +597,7 @@ public class pdf_service {
                 .collect(Collectors.toList());
     }
 
+    /* Devuelve la etiqueta legible para una especialidad (ELECTRICIDAD -> "Electricidad", FONTANERIA -> "Fontanería"). */
     private String labelEspecialidad(String esp) {
         return switch (esp) {
             case "ELECTRICIDAD" -> "Electricidad";
@@ -602,10 +606,12 @@ public class pdf_service {
         };
     }
 
+    /* Formatea un número de horas: si es entero muestra "8h", si tiene decimales muestra "7.5h". */
     private String formatHoras(double h) {
         return h % 1 == 0 ? (int) h + "h" : h + "h";
     }
 
+    /* Limpia un nombre para usarlo como nombre de archivo: elimina caracteres no permitidos (solo permite letras, números, espacios, guiones y guiones bajos). */
     private String sanitizarNombre(String nombre) {
         return nombre.replaceAll("[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]", "_").trim();
     }

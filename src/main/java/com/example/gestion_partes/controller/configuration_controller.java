@@ -1,3 +1,6 @@
+/* Controlador REST para gestionar las fechas libres de los usuarios.
+   Permite habilitar/deshabilitar fechas específicas en las que un usuario puede registrar partes
+   aunque estén fuera del rango normal. Útil para días festivos habilitados o recuperaciones. */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.service.configuration_service;
@@ -19,7 +22,8 @@ public class configuration_controller {
     @Autowired
     configuration_service service;
 
-
+    /* POST /habilitar/{id}: añade una o varias fechas libres para un perfil concreto.
+       Solo ADMINISTRACION y GESTION pueden hacerlo. */
     @PostMapping("/habilitar/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> habilitar(
@@ -29,6 +33,7 @@ public class configuration_controller {
         return ResponseEntity.ok("Fechas añadidas: " + fechas);
     }
 
+    /* DELETE /deshabilitar/{id}/{fecha}: elimina una fecha libre concreta de un perfil. */
     @DeleteMapping("/deshabilitar/{id}/{fecha}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> deshabilitarFecha(
@@ -38,6 +43,7 @@ public class configuration_controller {
         return ResponseEntity.ok("Fecha eliminada");
     }
 
+    /* DELETE /deshabilitar/{id}: elimina todas las fechas libres de un perfil. */
     @DeleteMapping("/deshabilitar/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> deshabilitarTodas(@PathVariable String id) {
@@ -45,12 +51,14 @@ public class configuration_controller {
         return ResponseEntity.ok("Todas las fechas eliminadas");
     }
 
+    /* GET /: devuelve un mapa con todos los usuarios activos y sus fechas libres asignadas. */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<Map<String, List<LocalDate>>> listar() {
         return ResponseEntity.ok(service.getUsuariosActivos());
     }
 
+    /* GET /mis-fechas: devuelve las fechas libres del usuario autenticado. */
     @GetMapping("/mis-fechas")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<LocalDate>> misFechas(Authentication auth) {

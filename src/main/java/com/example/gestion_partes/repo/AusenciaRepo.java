@@ -1,3 +1,20 @@
+/*
+ * REPOSITORIO: AusenciaRepo (Acceso a base de datos de ausencias)
+ *
+ * Proporciona metodos para consultar las ausencias laborales
+ * (bajas, vacaciones, permisos de paternidad).
+ *
+ * Metodos:
+ * - findSolapadasEnRango: Busca ausencias de un trabajador concreto
+ *   que se solapen con un periodo de fechas (sirve para saber si
+ *   un trabajador estaba de baja cuando deberia haber trabajado)
+ * - findTodasEnRango: Todas las ausencias de cualquier trabajador
+ *   en un periodo (para administracion)
+ * - findByPerfilIdOrderByFechaInicioDesc: Historial de ausencias
+ *   de un trabajador, ordenado de mas reciente a mas antiguo
+ * - findEnRangoOptional: Version optimizada que permite filtrar
+ *   por una lista de trabajadores o devolver todas (sin filtro)
+ */
 package com.example.gestion_partes.repo;
 
 import com.example.gestion_partes.model.Ausencia;
@@ -14,8 +31,16 @@ import java.util.UUID;
 @Repository
 public interface AusenciaRepo extends JpaRepository<Ausencia, Long> {
 
-    // ── Métodos existentes (sin tocar) ────────────────────────────────────────
-
+    /*
+     * Busca ausencias de un trabajador concreto que se solapen
+     * con un rango de fechas.
+     *
+     * "Se solapen" significa que la ausencia empieza antes o durante
+     * el periodo y termina despues o durante el periodo.
+     *
+     * Recibe: el ID del trabajador, la fecha de inicio y fin del rango
+     * Devuelve: lista de ausencias que coinciden
+     */
     @Query("""
         SELECT a FROM Ausencia a
         WHERE a.perfilId = :perfilId
@@ -28,6 +53,10 @@ public interface AusenciaRepo extends JpaRepository<Ausencia, Long> {
             @Param("fin") LocalDate fin
     );
 
+    /*
+     * Busca TODAS las ausencias de cualquier trabajador en un rango
+     * de fechas. Se usa para los informes de administracion.
+     */
     @Query("""
         SELECT a FROM Ausencia a
         WHERE a.fechaInicio <= :fin
@@ -38,21 +67,22 @@ public interface AusenciaRepo extends JpaRepository<Ausencia, Long> {
             @Param("fin") LocalDate fin
     );
 
+    // Historial completo de ausencias de un trabajador,
+    // ordenado de la mas reciente a la mas antigua
     List<Ausencia> findByPerfilIdOrderByFechaInicioDesc(UUID perfilId);
 
-    // ── Nuevo método optimizado ───────────────────────────────────────────────
-
-    /**
-     * Versión unificada para administración y jefe de obra.
+    /*
+     * Version unificada y optimizada para buscar ausencias en un rango.
      *
-     * Cuando sinFiltro = true (administración) devuelve todas las ausencias
-     * del rango, igual que findTodasEnRango().
+     * Cuando sinFiltro = true: devuelve todas las ausencias del periodo
+     * (sin filtrar por trabajadores). Es el equivalente a findTodasEnRango.
      *
-     * Cuando sinFiltro = false (jefe de obra) aplica el IN en SQL,
-     * eliminando el stream().filter() que antes se hacía en Java.
+     * Cuando sinFiltro = false: filtra por los trabajadores indicados
+     * en la lista perfilIds. Sirve para que un jefe de obra vea solo
+     * las ausencias de sus subordinados.
      *
-     * Nota: los parámetros inicio/fin siguen la misma convención
-     * que findTodasEnRango() para no introducir inconsistencias.
+     * Recibe: inicio y fin del periodo, lista de IDs para filtrar,
+     *         y un booleano que indica si se filtra o no
      */
     @Query("""
         SELECT a FROM Ausencia a

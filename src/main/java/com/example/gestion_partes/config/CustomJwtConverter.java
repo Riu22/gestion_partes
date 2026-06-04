@@ -1,3 +1,6 @@
+/* Conversor personalizado de JWT a AuthenticationToken de Spring Security.
+   Extrae el rol del usuario desde los claims app_metadata o user_metadata del JWT de Supabase
+   y lo convierte en una autoridad ROLE_* para que Spring Security pueda evaluar @PreAuthorize. */
 package com.example.gestion_partes.config;
 
 import org.springframework.core.convert.converter.Converter;
@@ -15,13 +18,14 @@ import java.util.Map;
 @Component
 public class CustomJwtConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
+    /* Convierte un JWT en un JwtAuthenticationToken con las autoridades (roles) del usuario.
+       Busca el claim "rol" primero en app_metadata y luego en user_metadata (por si Supabase lo guarda en uno u otro). */
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Collection<GrantedAuthority> authorities = new ArrayList<>();
 
         String rol = null;
 
-        // Supabase puede poner el rol en app_metadata o user_metadata
         Map<String, Object> appMetadata = jwt.getClaimAsMap("app_metadata");
         if (appMetadata != null && appMetadata.containsKey("rol")) {
             rol = (String) appMetadata.get("rol");

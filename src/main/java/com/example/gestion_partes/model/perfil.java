@@ -9,6 +9,33 @@ import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+/*
+ * ENTIDAD: perfil (Perfiles de usuario)
+ *
+ * Esta clase representa la tabla "perfiles" de la base de datos.
+ * Contiene los datos de cada persona que usa el sistema,
+ * incluyendo su informacion personal, su rol dentro de la empresa
+ * y a que obras esta asignada.
+ *
+ * Cada perfil se corresponde con un usuario de Supabase Auth
+ * (sistema de autenticacion externo). El ID del perfil es el mismo
+ * UUID que usa Supabase para identificar al usuario.
+ *
+ * Campos principales:
+ * - id:          Identificador unico (UUID), el mismo que en Supabase Auth
+ * - email:       Correo electronico del usuario
+ * - name:        Nombre de la persona
+ * - apellidos:   Apellidos de la persona
+ * - rol:         Rol o puesto en la empresa (ADMINISTRACION, OPERARIO, etc.)
+ * - activo:      Si el usuario esta activo (true) o desactivado (false)
+ * - codigo:      Codigo numerico de identificacion del trabajador
+ * - postventa:   Indica si el trabajador es del departamento de postventa
+ * - especialidad:   Especialidad del trabajador (ELECTRICIDAD o FONTANERIA)
+ * - grupo_profesional: Grupo profesional / categoria laboral
+ * - creadoEl:    Fecha y hora de creacion del registro
+ * - jefeDirecto: Referencia al perfil del jefe directo (autoreferencia)
+ *                Por ejemplo: un OPERARIO tiene como jefeDirecto a un ENCARGADO
+ */
 @Entity
 @Table(name = "perfiles", schema = "public")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
@@ -43,8 +70,10 @@ public class perfil {
     @JsonIgnore
     private perfil jefeDirecto;
 
+    // Constructor vacio requerido por JPA (Hibernate) para crear objetos
     public perfil() {}
 
+    // Constructor basico con los campos esenciales
     public perfil(String email, String name, user_rol rol, boolean activo) {
         this.email = email;
         this.name = name;
@@ -52,103 +81,44 @@ public class perfil {
         this.activo = activo;
     }
 
+    /*
+     * Obtiene el ID del jefe directo (si tiene uno asignado).
+     * Devuelve: el UUID del jefe directo, o null si no tiene jefe
+     */
     public UUID getJefeDirectoId() {
         return jefeDirecto != null ? jefeDirecto.getId() : null;
     }
 
-    public perfil getJefeDirecto() {
-        return jefeDirecto;
-    }
-
-    public void setJefeDirecto(perfil jefeDirecto) {
-        this.jefeDirecto = jefeDirecto;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getApellidos() {
-        return apellidos;
-    }
-
-    public void setApellidos(String apellidos) {
-        this.apellidos = apellidos;
-    }
-
-    public user_rol getRol() {
-        return rol;
-    }
-
-    public void setRol(user_rol rol) {
-        this.rol = rol;
-    }
-
-    public boolean isActivo() {
-        return activo;
-    }
-
-    public void setActivo(boolean activo) {
-        this.activo = activo;
-    }
-
-    public String getCodigo() {
-        return codigo;
-    }
-
-    public void setCodigo(String codigo) {
-        this.codigo = codigo;
-    }
-
-    public Boolean getPostventa() {
-        return postventa;
-    }
-
-    public void setPostventa(Boolean postventa) {
-        this.postventa = postventa;
-    }
-
-    public especialidad getEspecialidad() {
-        return especialidad;
-    }
-
-    public void setEspecialidad(especialidad especialidad) {
-        this.especialidad = especialidad;
-    }
-
-    public String getGrupo_profesional() {
-        return grupo_profesional;
-    }
-
-    public void setGrupo_profesional(String grupo_profesional) {
-        this.grupo_profesional = grupo_profesional;
-    }
-
-    public OffsetDateTime getCreadoEl() {
-        return creadoEl;
-    }
-
-    public void setCreadoEl(OffsetDateTime creadoEl) {
-        this.creadoEl = creadoEl;
-    }
+    /*
+     * GETTERS Y SETTERS
+     *
+     * Los metodos "get..." devuelven el valor del campo.
+     * Los metodos "set..." permiten cambiar el valor del campo.
+     * Son necesarios para que JPA y otros sistemas (JSON, etc.)
+     * puedan leer y modificar los datos del objeto.
+     */
+    public perfil getJefeDirecto() { return jefeDirecto; }
+    public void setJefeDirecto(perfil jefeDirecto) { this.jefeDirecto = jefeDirecto; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public String getApellidos() { return apellidos; }
+    public void setApellidos(String apellidos) { this.apellidos = apellidos; }
+    public user_rol getRol() { return rol; }
+    public void setRol(user_rol rol) { this.rol = rol; }
+    public boolean isActivo() { return activo; }
+    public void setActivo(boolean activo) { this.activo = activo; }
+    public String getCodigo() { return codigo; }
+    public void setCodigo(String codigo) { this.codigo = codigo; }
+    public Boolean getPostventa() { return postventa; }
+    public void setPostventa(Boolean postventa) { this.postventa = postventa; }
+    public especialidad getEspecialidad() { return especialidad; }
+    public void setEspecialidad(especialidad especialidad) { this.especialidad = especialidad; }
+    public String getGrupo_profesional() { return grupo_profesional; }
+    public void setGrupo_profesional(String grupo_profesional) { this.grupo_profesional = grupo_profesional; }
+    public OffsetDateTime getCreadoEl() { return creadoEl; }
+    public void setCreadoEl(OffsetDateTime creadoEl) { this.creadoEl = creadoEl; }
 }

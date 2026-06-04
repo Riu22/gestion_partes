@@ -1,3 +1,5 @@
+/* Controlador REST para la gestión de obras.
+   Permite listar todas las obras, ver solo las activas, crear, actualizar y eliminar obras. */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.dto.obra_dto;
@@ -18,16 +20,20 @@ public class obra_controller {
     @Autowired
     obra_service obra_service;
 
+    /* GET /: devuelve todas las obras (sin filtro de activas). */
     @GetMapping()
     public ResponseEntity<List<obra>> get_all_obra(){
         return ResponseEntity.ok(obra_service.get_all_obras());
     }
 
+    /* GET /activas: devuelve solo las obras marcadas como activas. */
     @GetMapping("/activas")
     ResponseEntity<List<obra>> get_obra_activas(){
         return ResponseEntity.ok(obra_service.get_obras_activas());
     }
 
+    /* POST /: crea una nueva obra. Solo ADMINISTRACION y GESTION pueden crear.
+       Recibe los datos en obra_dto (nombre, ubicación, fechas, etc.). */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> create_obra(@RequestBody obra_dto new_obra){
@@ -40,12 +46,15 @@ public class obra_controller {
         }
     }
 
+    /* DELETE /delete/{id}: elimina una obra por su ID. Solo ADMINISTRACION puede eliminar. */
     @DeleteMapping("/delete/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> delete_obra(@PathVariable Long id){
         obra_service.delete_obra(id);
         return new ResponseEntity(HttpStatus.OK);
     }
+
+    /* PUT /update_obra/{id}: actualiza los datos de una obra existente. */
     @PutMapping("/update_obra/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<obra> update_obra(@PathVariable Long id, @RequestBody obra_dto obra_datos){

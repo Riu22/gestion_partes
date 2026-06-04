@@ -1,3 +1,6 @@
+/* Controlador REST para la gestión de asignaciones entre perfiles y obras.
+   Permite asignar jefes/encargados a obras, subordinados a jefes, consultar asignaciones,
+   y asignaciones en lote (batch). Roles permitidos: ADMINISTRACION y GESTION principalmente. */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.model.asignacion_obra;
@@ -19,7 +22,7 @@ public class asignacion_controller {
     @Autowired
     asignacion_service asignacion_service;
 
-    // Asignar jefe o encargado a una obra
+    /* POST /asignar_a_obra/{perfilId}/{obraId}: asigna un perfil (jefe/encargado) a una obra. */
     @PostMapping("/asignar_a_obra/{perfilId}/{obraId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<asignacion_obra> asignar_a_obra(
@@ -28,7 +31,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.asignar_a_obra(perfilId, obraId));
     }
 
-    // Asignar operario a su encargado
+    /* PUT /asignar_subordinado/{subordinadoId}/{jefeId}: asigna un operario como subordinado de un encargado/jefe. */
     @PutMapping("/asignar_subordinado/{subordinadoId}/{jefeId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<perfil> asignar_subordinado(
@@ -37,7 +40,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.asignar_subordinado(subordinadoId, jefeId));
     }
 
-    // Asignar encargado a su jefe de obra
+    /* PUT /asignar_encargado/{encargadoId}/{jefeId}: asigna un encargado como subordinado de un jefe de obra. */
     @PutMapping("/asignar_encargado/{encargadoId}/{jefeId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<perfil> asignar_encargado(
@@ -46,7 +49,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.asignar_encargado_a_jefe(encargadoId, jefeId));
     }
 
-    // Ver quién está asignado a una obra
+    /* GET /obra/{obraId}: devuelve todas las asignaciones (perfiles) de una obra concreta. */
     @GetMapping("/obra/{obraId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA','ENCARGADO')")
     public ResponseEntity<List<asignacion_obra>> get_asignaciones_obra(
@@ -54,7 +57,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.get_asignaciones_obra(obraId));
     }
 
-    // Ver obras asignadas a un perfil
+    /* GET /perfil/{perfilId}: devuelve todas las obras asignadas a un perfil concreto. */
     @GetMapping("/perfil/{perfilId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA','ENCARGADO')")
     public ResponseEntity<List<asignacion_obra>> get_obras_de_perfil(
@@ -62,7 +65,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.get_obras_de_perfil(perfilId));
     }
 
-    // Eliminar asignación de obra
+    /* DELETE /eliminar/{asignacionId}: elimina la asignación de un perfil a una obra. */
     @DeleteMapping("/eliminar/{asignacionId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> eliminar_asignacion(
@@ -71,20 +74,23 @@ public class asignacion_controller {
         return ResponseEntity.ok().build();
     }
 
+    /* GET /{jefeId}/subordinados: devuelve la lista de subordinados de un jefe/encargado. */
     @GetMapping("/{jefeId}/subordinados")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<List<perfil>> get_subordinados_de(@PathVariable UUID jefeId) {
         return ResponseEntity.ok(asignacion_service.get_mis_subordinados(jefeId));
     }
 
-    // 2. Endpoint para quitar un jefe directo (el botón de eliminar en Flutter)
+    /* DELETE /quitar_subordinado/{usuarioId}: elimina la relación jefe directo de un usuario
+       (pone jefe_directo a null). */
     @DeleteMapping("/quitar_subordinado/{usuarioId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> quitar_subordinado(@PathVariable UUID usuarioId) {
-        // En tu service, este método debe poner jefe_directo = null
         asignacion_service.quitar_jefe_directo(usuarioId);
         return ResponseEntity.ok().build();
     }
+
+    /* GET /mis_obras: devuelve las obras asignadas al usuario autenticado. */
     @GetMapping("/mis_obras")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<asignacion_obra>> get_mis_obras(Authentication auth) {
@@ -92,6 +98,7 @@ public class asignacion_controller {
         return ResponseEntity.ok(asignacion_service.get_mis_obras(id));
     }
 
+    /* POST /asignar_obras_batch/{perfilId}: asigna múltiples obras a un perfil de una sola vez. */
     @PostMapping("/asignar_obras_batch/{perfilId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<Void> asignar_obras_batch(
@@ -101,6 +108,7 @@ public class asignacion_controller {
         return ResponseEntity.ok().build();
     }
 
+    /* PUT /asignar_subordinados_batch/{jefeId}: asigna múltiples subordinados a un jefe de una sola vez. */
     @PutMapping("/asignar_subordinados_batch/{jefeId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<Void> asignar_subordinados_batch(

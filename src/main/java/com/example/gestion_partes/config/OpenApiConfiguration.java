@@ -1,3 +1,6 @@
+/* Configuración de OpenAPI (Swagger) para la documentación interactiva de la API.
+   Define el título, versión y descripción de la API, así como el esquema de seguridad
+   Bearer Token (JWT) que se usará en todos los endpoints protegidos. */
 package com.example.gestion_partes.config;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;

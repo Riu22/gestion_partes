@@ -1,3 +1,26 @@
+/*
+ * REPOSITORIO: perfil_repo (Acceso a base de datos de perfiles de usuario)
+ *
+ * Esta interfaz proporciona los metodos para consultar y manipular
+ * la tabla "perfiles" en la base de datos. Spring Data JPA genera
+ * automaticamente el codigo SQL necesario para cada metodo.
+ *
+ * Metodos basicos (generados automaticamente por Spring):
+ * - findAllByOrderByActivoDescApellidosAscNameAsc: Todos los perfiles ordenados
+ *   (primero los activos, luego por apellidos y nombre alfabeticamente)
+ * - findByJefeDirecto_Id: Busca los subordinados directos de un jefe
+ * - findByActivoTrueAndRolIn: Busca perfiles activos filtrando por roles
+ * - findByActivoTrue: Todos los perfiles activos
+ * - findByEmail: Busca un perfil por su correo electronico
+ *
+ * Metodos con consultas personalizadas (SQL nativo o JPQL):
+ * - findSubordinadosDosNiveles: Usa una consulta recursiva de PostgreSQL
+ *   para obtener en una sola llamada todos los subordinados de un jefe
+ *   hasta dos niveles abajo (jefe -> encargados -> operarios)
+ * - findByCodigos: Busca perfiles por sus codigos internos
+ * - findParaContabilidad: Consulta combinada que obtiene perfiles para
+ *   los informes de contabilidad, aceptando varios criterios de busqueda
+ */
 package com.example.gestion_partes.repo;
 
 import com.example.gestion_partes.model.perfil;
@@ -13,24 +36,47 @@ import java.util.UUID;
 
 public interface perfil_repo extends JpaRepository<perfil, UUID> {
 
-    // ── Métodos existentes (sin tocar) ────────────────────────────────────────
+    /*
+     * METODOS BASICOS (Spring Data JPA genera el SQL automaticamente)
+     */
 
+    // Obtiene todos los perfiles ordenados: primero los activos,
+    // luego alfabeticamente por apellidos y nombre
     List<perfil> findAllByOrderByActivoDescApellidosAscNameAsc();
+
+    // Busca todos los perfiles que tienen a un jefe directo concreto
+    // Sirve para obtener los subordinados directos de una persona
     List<perfil> findByJefeDirecto_Id(UUID jefeId);
+
+    // Busca perfiles activos que tengan uno de los roles indicados
+    // Ejemplo: findByActivoTrueAndRolIn([OPERARIO, ENCARGADO])
     List<perfil> findByActivoTrueAndRolIn(List<user_rol> roles);
+
+    // Obtiene todos los perfiles que estan marcados como activos
     List<perfil> findByActivoTrue();
+
+    // Busca un perfil por su direccion de correo electronico
+    // Devuelve Optional porque puede no existir
     Optional<perfil> findByEmail(String username);
 
-    // ── Métodos optimizados ───────────────────────────────────────────────────
+    /*
+     * METODOS CON CONSULTAS PERSONALIZADAS
+     */
 
-    /**
-     * Sustituye el bucle N+1 de findByJefeDirecto_Id().
+    /*
+     * findSubordinadosDosNiveles: Obtiene todos los subordinados de un jefe
+     * hasta dos niveles jerarquicos.
      *
-     * Devuelve en una sola query todos los subordinados directos del jefe
-     * MÁS los subordinados de sus encargados (dos niveles), igual que la
-     * lógica Java anterior pero sin roundtrips adicionales.
+     * Que hace: Usa una "CTE recursiva" de PostgreSQL, que es una consulta
+     * que se llama a si misma para recorrer la jerarquia.
      *
-     * Usa CTE recursivo de PostgreSQL. Si se usa H2 en tests, ver MIGRACION.md.
+     * Como funciona:
+     * 1. Primero encuentra los subordinados directos del jefe
+     * 2. Luego, para cada subordinado que sea ENCARGADO, busca SUS subordinados
+     * 3. Une todo en un solo resultado
+     *
+     * Recibe: jefeId - el UUID del jefe
+     * Devuelve: lista de perfiles (subordinados directos + subordinados de encargados)
      */
     @Query(value = """
             WITH RECURSIVE subordinados AS (
@@ -53,23 +99,33 @@ public interface perfil_repo extends JpaRepository<perfil, UUID> {
             """, nativeQuery = true)
     List<perfil> findSubordinadosDosNiveles(@Param("jefeId") UUID jefeId);
 
-    /**
-     * Carga solo los perfiles cuyo código está en la colección dada.
-     * Reemplaza findAll() + filtrado en memoria.
+    /*
+     * findByCodigos: Busca perfiles por sus codigos internos
      *
-     * Precondición: no llamar con colección vacía (genera IN () inválido).
+     * Recibe: una lista de codigos (Strings)
+     * Devuelve: los perfiles que tienen esos codigos
+     *
+     * Importante: no llamar con la lista vacia porque generaria
+     * una consulta SQL "IN ()" que es invalida
      */
     @Query("SELECT p FROM perfil p WHERE p.codigo IN :codigos")
     List<perfil> findByCodigos(@Param("codigos") Collection<String> codigos);
 
-    /**
-     * Un solo round-trip que cubre los tres casos de contabilidad_service:
-     *  - perfiles que aparecen en partes (por código)
-     *  - subordinados directos del jefe (por id)
-     *  - todos los activos OPERARIO/ENCARGADO (cuando incluirTodos = true)
+    /*
+     * findParaContabilidad: Busca perfiles para los informes de contabilidad
      *
-     * IMPORTANTE: no llamar con codigos o ids vacíos; usar centinelas
-     * ("__VACIO__" / UUID cero) para evitar IN () inválido en SQL.
+     * Es una consulta combinada que cubre tres casos en un solo viaje a BD:
+     * 1. Perfiles que aparecen en partes de trabajo (buscados por codigo)
+     * 2. Subordinados directos de un jefe (buscados por ID)
+     * 3. Todos los OPERARIO/ENCARGADO activos (cuando incluirTodos=true)
+     *
+     * Recibe:
+     * - codigos: lista de codigos de trabajadores
+     * - ids: lista de IDs de perfiles
+     * - roles: roles a incluir si incluirTodos=true
+     * - incluirTodos: si es true, incluye todos los activos con los roles dados
+     *
+     * Devuelve: lista de perfiles que cumplen alguna de las condiciones
      */
     @Query("""
         SELECT p FROM perfil p

@@ -1,3 +1,29 @@
+/*
+ * SERVICIO: asignacion_service (Gestion de asignaciones de trabajadores a obras)
+ *
+ * Gestiona las relaciones entre trabajadores y obras, asi como las
+ * relaciones jerarquicas entre los distintos roles (jefe -> encargado -> operario).
+ *
+ * Metodos principales:
+ *
+ * ASIGNACIONES A OBRAS:
+ * - asignar_a_obra:           Asigna un trabajador a una obra
+ * - get_asignaciones_obra:    Obtiene todas las asignaciones de una obra
+ * - eliminar_asignacion_obra: Elimina una asignacion concreta
+ * - asignar_obras_batch:      Asigna varias obras a un trabajador de golpe
+ * - get_obras_de_perfil:      Obras asignadas a un trabajador
+ *
+ * JERARQUIA (subordinacion):
+ * - asignar_subordinado:      Establece la relacion jefe->subordinado
+ * - asignar_encargado_a_jefe: Asigna un ENCARGADO como subordinado de un JEFE_DE_OBRA
+ * - quitar_jefe_directo:      Elimina la relacion de subordinacion
+ * - get_mis_subordinados:     Obtiene los subordinados directos de un usuario
+ * - asignar_subordinados_batch: Asigna varios subordinados a un jefe de golpe
+ *
+ * CONSULTAS:
+ * - get_mis_obras:      Obtiene las obras visibles para un usuario segun su rol
+ * - getObrasDeJefe:     IDs de las obras de un jefe
+ */
 package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.model.*;
@@ -14,13 +40,21 @@ import java.util.stream.Collectors;
 @Service
 public class asignacion_service {
 
-    @Autowired
-    perfil_repo perfil_repo;
-    @Autowired
-    obra_repo obra_repo;
-    @Autowired
-    asignacion_obra_repo asignacion_obra_repo;
+    @Autowired perfil_repo perfil_repo;
+    @Autowired obra_repo obra_repo;
+    @Autowired asignacion_obra_repo asignacion_obra_repo;
 
+    // ─── ASIGNACIONES A OBRAS ─────────────────────────────────────────────
+
+    /*
+     * Asigna un trabajador a una obra.
+     * Recibe: el UUID del trabajador y el ID de la obra
+     * Devuelve: el objeto asignacion_obra creado
+     *
+     * Restricciones:
+     * - ADMINISTRACION y GESTION no se asignan a obras (tienen visibilidad global)
+     * - No se permite asignar dos veces el mismo trabajador a la misma obra
+     */
     public asignacion_obra asignar_a_obra(UUID perfilId, Long obraId) {
         perfil perfil = perfil_repo.findById(perfilId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
@@ -33,12 +67,17 @@ public class asignacion_service {
         }
 
         if (asignacion_obra_repo.existsByPerfilIdAndObraId(perfilId, obraId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este perfil ya está asignado a esta obra");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este perfil ya esta asignado a esta obra");
         }
 
         return asignacion_obra_repo.save(new asignacion_obra(perfil, obra));
     }
 
+    /*
+     * Obtiene todas las asignaciones (trabajadores) de una obra concreta.
+     * Recibe: el ID de la obra
+     * Devuelve: lista de asignaciones
+     */
     public List<asignacion_obra> get_asignaciones_obra(Long obraId) {
         if (!obra_repo.existsById(obraId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Obra no encontrada");
@@ -46,24 +85,34 @@ public class asignacion_service {
         return asignacion_obra_repo.findByObraId(obraId);
     }
 
+    /*
+     * Elimina una asignacion concreta.
+     * Recibe: el ID de la asignacion a eliminar
+     */
     public void eliminar_asignacion_obra(Long asignacionId) {
         if (!asignacion_obra_repo.existsById(asignacionId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Asignación no encontrada");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Asignacion no encontrada");
         }
         asignacion_obra_repo.deleteById(asignacionId);
     }
 
-    // --- GESTIÓN DE EQUIPO (SUBORDINADOS) ---
+    // ─── GESTION DE EQUIPO (SUBORDINADOS) ────────────────────────────────
 
-    // Asigna un operario a un encargado
-    // Método unificado que reemplaza a asignar_operario_a_encargado y asignar_encargado_a_jefe
+    /*
+     * Asigna un subordinado a un jefe (establece la relacion jerarquica).
+     * Sirve tanto para asignar OPERARIO a ENCARGADO como ENCARGADO a JEFE_DE_OBRA.
+     *
+     * Recibe: el UUID del subordinado y el UUID del jefe
+     * Devuelve: el perfil del subordinado actualizado
+     *
+     * ADMINISTRACION y GESTION no pueden tener jefe directo.
+     */
     public perfil asignar_subordinado(UUID subordinadoId, UUID jefeId) {
         perfil subordinado = perfil_repo.findById(subordinadoId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
         perfil jefe = perfil_repo.findById(jefeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Jefe no encontrado"));
 
-        // Solo ADMINISTRACION/GESTION no pueden tener jefe directo
         if (subordinado.getRol() == user_rol.ADMINISTRACION || subordinado.getRol() == user_rol.GESTION) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "ADMINISTRACION y GESTION no pueden tener jefe directo");
@@ -73,7 +122,11 @@ public class asignacion_service {
         return perfil_repo.save(subordinado);
     }
 
-    // Asigna un encargado a un jefe de obra
+    /*
+     * Asigna un ENCARGADO como subordinado de un JEFE_DE_OBRA.
+     * Recibe: UUID del encargado y UUID del jefe de obra
+     * Devuelve: el encargado actualizado con su nuevo jefe
+     */
     public perfil asignar_encargado_a_jefe(UUID encargadoId, UUID jefeId) {
         perfil encargado = perfil_repo.findById(encargadoId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Encargado no encontrado"));
@@ -87,27 +140,39 @@ public class asignacion_service {
         return perfil_repo.save(encargado);
     }
 
-    /**
-     * MÉTODO NUEVO: Elimina la relación de subordinación.
-     * Simplemente pone el jefeDirecto a null.
+    /*
+     * Elimina la relacion de subordinacion de un usuario.
+     * Simplemente pone su jefeDirecto a null (se queda sin jefe asignado).
+     * Recibe: el UUID del usuario
      */
     public void quitar_jefe_directo(UUID usuarioId) {
         perfil usuario = perfil_repo.findById(usuarioId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
-
         usuario.setJefeDirecto(null);
         perfil_repo.save(usuario);
     }
 
-    /**
-     * Mejora: No lanzamos error si no hay, devolvemos lista vacía para que el Front no explote.
+    /*
+     * Obtiene los subordinados directos de un usuario.
+     * Recibe: el UUID del jefe
+     * Devuelve: lista de perfiles que tienen a ese usuario como jefeDirecto
+     * Si no tiene subordinados, devuelve lista vacia.
      */
     public List<perfil> get_mis_subordinados(UUID id) {
         return perfil_repo.findByJefeDirecto_Id(id);
     }
 
-    // --- CONSULTAS DE OBRAS ---
+    // ─── CONSULTAS DE OBRAS ──────────────────────────────────────────────
 
+    /*
+     * Obtiene las obras visibles para un usuario segun su rol:
+     * - JEFE_DE_OBRA o ENCARGADO: devuelve las obras a las que esta asignado
+     * - OPERARIO: devuelve las obras del encargado al que reporta
+     * - Otros (ADMIN, GESTION): lista vacia (tienen visibilidad global)
+     *
+     * Recibe: el UUID del usuario
+     * Devuelve: lista de asignaciones (cada una contiene obra + perfil)
+     */
     public List<asignacion_obra> get_mis_obras(UUID id) {
         perfil usuario = perfil_repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
@@ -123,10 +188,20 @@ public class asignacion_service {
         return List.of();
     }
 
+    /*
+     * Obtiene todas las obras asignadas a un perfil (sin logica de roles).
+     * Recibe: el UUID del perfil
+     * Devuelve: lista de asignaciones
+     */
     public List<asignacion_obra> get_obras_de_perfil(UUID perfilId) {
         return asignacion_obra_repo.findByPerfilId(perfilId);
     }
 
+    /*
+     * Asigna varias obras a un trabajador de una sola vez (asignacion masiva).
+     * Recibe: el UUID del trabajador y una lista de IDs de obras
+     * Solo se anaden las obras que no esten ya asignadas (evita duplicados).
+     */
     public void asignar_obras_batch(UUID perfilId, List<Long> obraIds) {
         perfil perfil = perfil_repo.findById(perfilId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Perfil no encontrado"));
@@ -147,6 +222,12 @@ public class asignacion_service {
         asignacion_obra_repo.saveAll(nuevas);
     }
 
+    /*
+     * Asigna varios subordinados a un jefe de una sola vez.
+     * Recibe: el UUID del jefe y una lista de UUIDs de subordinados
+     * Filtra automaticamente los perfiles ADMINISTRACION y GESTION
+     * (que no pueden tener jefe).
+     */
     public void asignar_subordinados_batch(UUID jefeId, List<UUID> subordinadoIds) {
         perfil jefe = perfil_repo.findById(jefeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Jefe no encontrado"));
@@ -164,6 +245,11 @@ public class asignacion_service {
         perfil_repo.saveAll(subordinados);
     }
 
+    /*
+     * Obtiene los IDs de las obras de un jefe (util para filtrar informes).
+     * Recibe: el UUID del jefe
+     * Devuelve: lista de IDs de obras
+     */
     public List<Long> getObrasDeJefe(UUID jefeId) {
         return get_mis_obras(jefeId)
                 .stream()

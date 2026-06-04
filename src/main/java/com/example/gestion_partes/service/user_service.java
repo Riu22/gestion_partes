@@ -1,3 +1,21 @@
+/*
+ * SERVICIO: user_service (Gestion de usuarios)
+ *
+ * Proporciona la logica para crear, modificar y eliminar usuarios,
+ * tanto en la base de datos local (tabla perfiles) como en el
+ * sistema de autenticacion externo de Supabase Auth.
+ *
+ * Metodos:
+ * - update_profile:  Modifica los datos de un perfil existente (nombre, rol, etc.)
+ *                    y opcionalmente actualiza email/contrasena en Supabase Auth
+ * - create_user:     Crea un nuevo usuario en Supabase Auth con sus metadatos,
+ *                    lo que automaticamente crea el perfil en la BD local
+ * - delete_user:     Elimina un usuario de Supabase Auth (y por tanto su perfil)
+ *
+ * Supabase es un servicio externo que proporciona autenticacion y base de datos.
+ * Este servicio se comunica con la API de administracion de Supabase usando
+ * una clave de servicio (service key) que tiene permisos de administrador.
+ */
 package com.example.gestion_partes.service;
 
 import com.example.gestion_partes.dto.create_user_dto;
@@ -36,6 +54,19 @@ public class user_service {
     @Autowired
     perfil_repo user_repo;
 
+    /*
+     * Actualiza los datos de un perfil de usuario existente.
+     *
+     * Recibe:
+     * - id: el UUID del usuario a modificar
+     * - datosNuevos: objeto con los campos que se quieren cambiar
+     *   (todos son opcionales, solo se actualizan los que no sean null)
+     *
+     * Devuelve: el perfil actualizado y guardado en base de datos
+     *
+     * Si ademas se especifica un nuevo email o contrasena, tambien se
+     * actualiza en Supabase Auth (el sistema de autenticacion externo).
+     */
     @Transactional
     public perfil update_profile(UUID id, update_user_dto datosNuevos) {
         perfil perfilExistente = user_repo.findById(id)
@@ -59,7 +90,7 @@ public class user_service {
         perfilExistente.setCreadoEl(OffsetDateTime.now());
         perfil saved = user_repo.save(perfilExistente);
 
-        // Actualizar email y/o contraseña en Supabase Auth si vienen informados
+        // Si se solicita cambio de email o contrasena, actualizar en Supabase Auth
         if (datosNuevos.email() != null || datosNuevos.password() != null) {
             update_auth_user(id, datosNuevos.email(), datosNuevos.password());
         }
@@ -67,6 +98,16 @@ public class user_service {
         return saved;
     }
 
+    /*
+     * Metodo privado que actualiza el email y/o contrasena de un usuario
+     * en el sistema de autenticacion de Supabase (Auth).
+     *
+     * Recibe: el UUID del usuario, el nuevo email (opcional) y la nueva contrasena (opcional)
+     * Devuelve: void
+     *
+     * Se comunica con la API REST de administracion de Supabase usando
+     * la clave de servicio (service_key).
+     */
     private void update_auth_user(UUID id, String email, String password) {
         String url = supabase_url + "/auth/v1/admin/users/" + id;
 
@@ -88,6 +129,18 @@ public class user_service {
         }
     }
 
+    /*
+     * Crea un nuevo usuario en el sistema.
+     *
+     * Recibe: un objeto create_user_dto con todos los datos del nuevo usuario
+     * Devuelve: void
+     *
+     * El proceso es:
+     * 1. Se llama a la API de administracion de Supabase Auth para crear el usuario
+     * 2. Se envian los metadatos (nombre, rol, especialidad, etc.) para que Supabase
+     *    los almacene y luego se propaguen a la tabla perfiles
+     * 3. El email se confirma automaticamente (email_confirm = true)
+     */
     public void create_user(create_user_dto new_user) {
         String url = supabase_url + "/auth/v1/admin/users";
         HttpHeaders headers = new HttpHeaders();
@@ -95,6 +148,7 @@ public class user_service {
         headers.set("apikey", service_key);
         headers.set("Authorization", "Bearer " + service_key);
 
+        // Construir los metadatos del usuario (se almacenan en Supabase y se copian a perfiles)
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("nombre", new_user.name());
         metadata.put("apellidos", new_user.apellidos());
@@ -105,12 +159,8 @@ public class user_service {
                 : "ELECTRICIDAD";
         metadata.put("especialidad", especialidadStr);
 
-        if (new_user.codigo() != null) {
-            metadata.put("codigo", new_user.codigo());
-        }
-        if (new_user.postventa() != null) {
-            metadata.put("postventa", new_user.postventa());
-        }
+        if (new_user.codigo() != null) metadata.put("codigo", new_user.codigo());
+        if (new_user.postventa() != null) metadata.put("postventa", new_user.postventa());
         if (new_user.grupo_profesional() != null && !new_user.grupo_profesional().isBlank()) {
             metadata.put("grupo_profesional", new_user.grupo_profesional());
         }
@@ -130,6 +180,16 @@ public class user_service {
         }
     }
 
+    /*
+     * Elimina un usuario del sistema.
+     *
+     * Recibe: el UUID del usuario a eliminar
+     * Devuelve: void
+     *
+     * La eliminacion se hace a traves de la API de administracion de Supabase,
+     * que borra el usuario de Auth y automaticamente se elimina el perfil
+     * de la tabla perfiles.
+     */
     public void delete_user(UUID id) {
         String url = supabase_url + "/auth/v1/admin/users/" + id;
 

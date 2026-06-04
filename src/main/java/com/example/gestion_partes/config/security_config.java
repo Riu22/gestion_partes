@@ -1,3 +1,7 @@
+/* Configuración de seguridad Spring Security para la aplicación.
+   Configura CORS, deshabilita CSRF (API REST stateless), define rutas públicas
+   y configura el servidor de recursos OAuth2 con JWT validado por clave HMAC-SHA256.
+   Los JWT son emitidos por Supabase Auth y se decodifican con un secreto compartido. */
 package com.example.gestion_partes.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,12 +29,15 @@ import java.util.List;
 @EnableMethodSecurity
 public class security_config {
 
+    /* Secreto JWT configurado en application.properties (debe coincidir con el de Supabase). */
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Autowired
     private CustomJwtConverter customJwtConverter;
 
+    /* Define la cadena de filtros de seguridad: CORS, sin CSRF, stateless, autorización por JWT.
+       Las rutas de Swagger, versión y prueba son públicas; todo lo demás requiere autenticación. */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -58,6 +65,8 @@ public class security_config {
         return http.build();
     }
 
+    /* Configura CORS para permitir peticiones desde cualquier origen (patrón "*"),
+       métodos HTTP estándar y cualquier cabecera. No permite credenciales (cookies). */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
@@ -71,15 +80,15 @@ public class security_config {
         return source;
     }
 
+    /* Crea un decodificador JWT que valida el token con HMAC-SHA256 usando el secreto compartido.
+       Solo valida la expiración (timestamp), no el issuer, porque Supabase local no lo envía siempre. */
     @Bean
     public JwtDecoder jwtDecoder() {
         SecretKeySpec secretKey = new SecretKeySpec(jwtSecret.getBytes(), "HmacSHA256");
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(secretKey).build();
 
-        // Creamos una lista de validadores manual, excluyendo el de Issuer
         List<OAuth2TokenValidator<Jwt>> validators = new ArrayList<>();
-        validators.add(new JwtTimestampValidator()); // Valida que el token no haya expirado
-        // No añadimos JwtIssuerValidator porque Supabase local no lo envía siempre
+        validators.add(new JwtTimestampValidator());
 
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(validators);
 

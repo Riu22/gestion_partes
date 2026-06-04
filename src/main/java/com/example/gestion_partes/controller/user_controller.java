@@ -1,3 +1,6 @@
+/* Controlador REST para la gestión de usuarios/perfiles.
+   Expone endpoints para obtener el perfil propio, crear, actualizar, eliminar usuarios
+   y listar todos los perfiles del sistema. */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.dto.create_user_dto;
@@ -25,17 +28,18 @@ public class user_controller {
     @Autowired
     user_service user_service;
 
+    /* GET /me: devuelve el perfil del usuario autenticado (identificado por el sub del JWT). */
     @GetMapping("/me")
     public ResponseEntity<perfil> getMyProfile(Authentication authentication) {
-        // Convertimos el String del sub a UUID
         UUID userId = UUID.fromString(authentication.getName());
-
 
         return ResponseEntity.ok(perfil_repo.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Perfil no encontrado para el ID: " + userId)));
     }
 
+    /* POST /create_user: crea un nuevo usuario en Supabase Auth y su perfil en la BD local.
+       Recibe los datos en create_user_dto (email, password, nombre, apellidos, rol, etc.). */
     @PostMapping("/create_user")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<String> create_user(@RequestBody create_user_dto new_user) {
@@ -43,6 +47,8 @@ public class user_controller {
         return new ResponseEntity<>("Usuario creado correctamente en Auth y Perfiles", HttpStatus.CREATED);
     }
 
+    /* DELETE /delete_user/{id}: elimina un usuario de Supabase Auth y su perfil de la BD local.
+       Solo ADMINISTRACION puede eliminar usuarios. */
     @DeleteMapping("/delete_user/{id}")
     @PreAuthorize("hasRole('ADMINISTRACION')")
     public ResponseEntity<String> delete_user(@PathVariable UUID id) {
@@ -54,12 +60,14 @@ public class user_controller {
 
     }
 
+    /* PUT /update_user/{id}: actualiza los datos del perfil de un usuario (nombre, apellidos, rol, etc.). */
     @PutMapping("/update_user/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION', 'GESTION')")
     public ResponseEntity<perfil> update_profile(@PathVariable UUID id, @RequestBody update_user_dto perfil_datos) {
         return ResponseEntity.ok(user_service.update_profile(id, perfil_datos));
     }
 
+    /* GET /all: devuelve todos los perfiles del sistema ordenados por activo (primero los activos) y luego alfabéticamente. */
     @GetMapping("/all")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<List<perfil>> get_all_users() {

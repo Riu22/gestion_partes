@@ -1,3 +1,9 @@
+/* Controlador REST principal para la gestión de partes de trabajo.
+   Agrupa endpoints para:
+   - Partes de operario/encargado (CRUD)
+   - Partes de jefe de obra (CRUD, validación)
+   - Búsqueda y filtrado de partes con control de acceso por rol
+   - Informes y resúmenes mensuales de jefes de obra */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.dto.informe_jefe_dto;
@@ -35,8 +41,8 @@ public class partes_controller {
     @Autowired configuration_service configuration_service;
     @Autowired obra_service obra_service;
 
-    // ─── PARTES OPERARIO / ENCARGADO ───────────────────────────
-
+    /* POST /new_parte: crea un nuevo parte de trabajo para operario o encargado.
+       Recibe los datos en el cuerpo (partes_dto) y la autenticación para identificar al usuario. */
     @PostMapping("/new_parte")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','OPERARIO','ENCARGADO')")
     public ResponseEntity<?> create_parte(
@@ -49,12 +55,16 @@ public class partes_controller {
         }
     }
 
+    /* GET /get_partes: devuelve los partes de trabajo visibles para el usuario autenticado
+       según su jerarquía (operario ve los suyos, jefe ve los de sus subordinados, etc.). */
     @GetMapping("/get_partes")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<partes_trabajo>> get_partes(Authentication auth) {
         return ResponseEntity.ok(partes_service.get_partes_jerarquico(auth.getName()));
     }
 
+    /* DELETE /delete/{parteId}: elimina un parte de trabajo. El usuario debe ser el propietario
+       o tener permisos de administración. */
     @DeleteMapping("/delete/{parteId}")
     public ResponseEntity<?> delete_parte(
             @PathVariable Long parteId,
@@ -64,22 +74,23 @@ public class partes_controller {
         return ResponseEntity.ok().build();
     }
 
-    // ─── FECHAS CON PARTE (para bloquear en DatePicker) ───────
-
+    /* GET /fechas-con-parte/{id}: devuelve la lista de fechas en las que un perfil tiene partes registrados.
+       Sirve para bloquear días en el DatePicker del frontend. */
     @GetMapping("/fechas-con-parte/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<List<LocalDate>> fechasConParte(@PathVariable String id) {
         return ResponseEntity.ok(partes_service.getFechasConParte(id));
     }
 
+    /* GET /mis-fechas-con-parte: igual que el anterior pero para el usuario autenticado (sus propias fechas). */
     @GetMapping("/mis-fechas-con-parte")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<LocalDate>> misFechasConParte(Authentication auth) {
         return ResponseEntity.ok(partes_service.getFechasConPartePorUsername(auth.getName()));
     }
 
-    // ─── PARTES JEFE DE OBRA ───────────────────────────────────
-
+    /* POST /new_parte_jefe: crea un nuevo parte de jefe de obra.
+       Solo accesible para el rol JEFE_DE_OBRA. */
     @PostMapping("/new_parte_jefe")
     @PreAuthorize("hasRole('JEFE_DE_OBRA')")
     public ResponseEntity<partes_jefe> create_parte_jefe(
@@ -89,6 +100,7 @@ public class partes_controller {
                 parte_jefe_service.create_parte_jefe(dto, auth.getName()));
     }
 
+    /* PUT /update_parte_jefe/{parteId}: actualiza un parte de jefe de obra existente. */
     @PutMapping("/update_parte_jefe/{parteId}")
     @PreAuthorize("hasAnyRole('JEFE_DE_OBRA','ADMINISTRACION','GESTION')")
     public ResponseEntity<partes_jefe> update_parte_jefe(
@@ -99,6 +111,7 @@ public class partes_controller {
                 parte_jefe_service.update_parte_jefe(parteId, dto, auth.getName()));
     }
 
+    /* GET /get_partes_jefe: devuelve los partes de jefe de obra visibles para el usuario autenticado. */
     @GetMapping("/get_partes_jefe")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<List<partes_jefe>> get_partes_jefe(Authentication auth) {
@@ -106,6 +119,8 @@ public class partes_controller {
                 parte_jefe_service.get_partes_jefe(auth.getName()));
     }
 
+    /* PUT /validar_jefe/{parteId}: valida (aprueba) un parte de jefe de obra.
+       Solo ADMINISTRACION y GESTION pueden validar. */
     @PutMapping("/validar_jefe/{parteId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> validar_parte_jefe(
@@ -115,6 +130,7 @@ public class partes_controller {
         return ResponseEntity.ok("Parte de jefe validado correctamente");
     }
 
+    /* DELETE /delete_jefe/{parteId}: elimina un parte de jefe de obra. */
     @DeleteMapping("/delete_jefe/{parteId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','JEFE_DE_OBRA')")
     public ResponseEntity<?> delete_parte_jefe(
@@ -123,6 +139,8 @@ public class partes_controller {
         return ResponseEntity.ok().build();
     }
 
+    /* GET /buscar: busca partes de trabajo con filtros opcionales (obra, operario, especialidad).
+       Los roles ENCARGADO y JEFE_DE_OBRA solo ven partes de sus obras asignadas. */
     @GetMapping("/buscar")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA','ENCARGADO')")
     public ResponseEntity<List<partes_trabajo>> buscar(
@@ -171,6 +189,8 @@ public class partes_controller {
                 partes_trabajo_repo.buscarPartes(obraFiltro, operarioFiltro, especialidadParaQuery));
     }
 
+    /* GET /puede-fecha-libre: comprueba si un usuario puede registrar un parte en una fecha concreta
+       (según la configuración de fechas libres). */
     @GetMapping("/puede-fecha-libre")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Boolean> puedeFechaLibre(
@@ -180,6 +200,7 @@ public class partes_controller {
                 configuration_service.puedeUsarFechaLibre(auth.getName(), fecha));
     }
 
+    /* PUT /update/{parteId}: actualiza un parte de trabajo existente. */
     @PutMapping("/update/{parteId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<partes_trabajo> update_parte(
@@ -190,6 +211,7 @@ public class partes_controller {
                 partes_service.update_parte(parteId, dto, auth.getName()));
     }
 
+    /* GET /informe_jefe/{parteId}: genera un informe detallado de un parte de jefe de obra. */
     @GetMapping("/informe_jefe/{parteId}")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<informe_jefe_dto> informe_parte_jefe(
@@ -199,6 +221,7 @@ public class partes_controller {
                 parte_jefe_service.generar_informe(parteId, auth.getName()));
     }
 
+    /* GET /resumen-mensual-jefe: devuelve un resumen mensual de partes de jefe de obra para un año y mes dados. */
     @GetMapping("/resumen-mensual-jefe")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<resumen_mensual_jefe_dto> resumen_mensual_jefe(
@@ -209,6 +232,7 @@ public class partes_controller {
                 parte_jefe_service.get_resumen_mensual(auth.getName(), anio, mes));
     }
 
+    /* GET /informe-jefe-rango: genera un informe de jefe de obra para un rango de fechas. */
     @GetMapping("/informe-jefe-rango")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<informe_jefe_dto> informe_jefe_rango(
@@ -219,6 +243,8 @@ public class partes_controller {
                 parte_jefe_service.generar_informe_rango(auth.getName(), desde, hasta));
     }
 
+    /* GET /resumen-mensual-por-usuario: devuelve el resumen mensual de partes de jefe de obra
+       para todos los usuarios (solo ADMINISTRACION y GESTION). */
     @GetMapping("/resumen-mensual-por-usuario")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
     public ResponseEntity<?> resumen_mensual_por_usuario(
@@ -228,6 +254,7 @@ public class partes_controller {
                 parte_jefe_service.get_resumen_mensual_por_usuario(anio, mes));
     }
 
+    /* GET /{id}: devuelve un parte de trabajo por su ID. */
     @GetMapping("/{id}")
     public ResponseEntity<partes_dto> getById(@PathVariable Long id) {
         return partes_trabajo_repo.findById(id)

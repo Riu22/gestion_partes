@@ -1,3 +1,9 @@
+/* Controlador REST para la generación y descarga de PDFs de partes de trabajo.
+   Permite generar:
+   - Un único PDF con todas las obras
+   - Un ZIP con un PDF por cada obra+especialidad
+   - Un ZIP con un PDF por cada operario+especialidad
+   Los jefes de obra solo ven sus obras asignadas. */
 package com.example.gestion_partes.controller;
 
 import com.example.gestion_partes.service.asignacion_service;
@@ -27,6 +33,8 @@ public class pdf_controller {
     @Autowired
     private asignacion_service asignacion_service;
 
+    /* GET /partes: genera y descarga un único PDF con todos los partes filtrados por obra, perfil y rango de fechas.
+       Los jefes de obra solo ven sus obras asignadas (resuelto en resolverObras). */
     @GetMapping("/partes")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<byte[]> generarPdf(
@@ -52,6 +60,7 @@ public class pdf_controller {
         }
     }
 
+    /* GET /partes-zip: genera y descarga un ZIP con un PDF por cada combinación obra+especialidad. */
     @GetMapping("/partes-zip")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<byte[]> generarZip(
@@ -77,6 +86,7 @@ public class pdf_controller {
         }
     }
 
+    /* GET /zip-por-operario: genera y descarga un ZIP con un PDF por cada combinación operario+especialidad. */
     @GetMapping("/zip-por-operario")
     @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
     public ResponseEntity<byte[]> zipPorOperario(
@@ -101,6 +111,9 @@ public class pdf_controller {
         }
     }
 
+    /* Resuelve las obras que puede ver un usuario según su rol.
+       Si es JEFE_DE_OBRA, filtra solo las obras que tiene asignadas.
+       Si es ADMINISTRACION/GESTION, usa las obras pasadas como parámetro (todas si es null). */
     private List<Long> resolverObras(List<Long> obraIds, Authentication auth) {
         boolean esJefe = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_JEFE_DE_OBRA"));
