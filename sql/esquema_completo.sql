@@ -45,6 +45,7 @@ CREATE TABLE public.obras (
                               codigo     text NOT NULL,
                               activa     boolean DEFAULT true,
                               creado_el  timestamp with time zone DEFAULT now(),
+                              postventa   boolean DEFAULT false,
                               CONSTRAINT obras_codigo_key UNIQUE (codigo)
 );
 

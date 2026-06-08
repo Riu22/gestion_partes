@@ -222,12 +222,16 @@ public class pdf_service {
                     .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
                     .forEach(ordenEsp::add);
 
-            String nombreObra = porEsp.values().iterator().next().get(0).getObra().getNombre();
+            partes_trabajo primeraObra = porEsp.values().iterator().next().get(0);
+            String nombreObra = primeraObra.getObra().getNombre();
+            String codigoObra = primeraObra.getObra().getCodigo();
+            String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
+                    ? "[" + codigoObra + "]  " : "";
+            evento.tituloActual = prefijoCodigo + nombreObra;
 
             for (String esp : ordenEsp) {
                 if (!primerGrupo) doc.newPage();
                 primerGrupo = false;
-                evento.tituloActual = nombreObra;
                 agregarGrupoAlDocumento(doc, nombreObra, esp, porEsp.get(esp), evento);
             }
         }
@@ -251,7 +255,12 @@ public class pdf_service {
         Document doc = construirDocumento(baos);
         PdfWriter writer = PdfWriter.getInstance(doc, baos);
         CabeceraPiePaginaEvent evento = agregarCabeceraYPie(writer);
-        evento.tituloActual = nombreObra;
+
+        String codigoObra = partes.get(0).getObra().getCodigo();
+        String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
+                ? "[" + codigoObra + "]  " : "";
+        evento.tituloActual = prefijoCodigo + nombreObra;
+
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
         agregarGrupoAlDocumento(doc, nombreObra, especialidad, partes, evento);
@@ -289,7 +298,11 @@ public class pdf_service {
             List<partes_trabajo> partes,
             CabeceraPiePaginaEvent evento) throws Exception {
 
-        String tituloSeccion = nombreObra;
+        /* Construye el título de sección incluyendo el código de la obra si está disponible. */
+        String codigoObra = partes.get(0).getObra().getCodigo();
+        String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
+                ? "[" + codigoObra + "]  " : "";
+        String tituloSeccion = prefijoCodigo + nombreObra;
         if (!especialidad.equals("SIN")) {
             tituloSeccion += "  ·  " + labelEspecialidad(especialidad);
         }
