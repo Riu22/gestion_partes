@@ -180,8 +180,9 @@ public class pdf_service {
         return zipBaos.toByteArray();
     }
 
-    /* Genera un único PDF con todas las obras. Agrupa por obra y dentro de cada obra por especialidad.
-       Cada grupo aparece en una página diferente con su cabecera correspondiente. */
+    /* Genera un único PDF con todos los partes. El orden es: primero toda la ELECTRICIDAD
+       (obra a obra alfabéticamente), luego toda la FONTANERIA, luego el resto de especialidades.
+       Dentro de cada especialidad las obras aparecen ordenadas alfabéticamente por nombre. */
     public byte[] generarPdfPartes(
             List<Long>   obraIds,
             List<String> perfilIds,
@@ -190,18 +191,27 @@ public class pdf_service {
 
         List<partes_trabajo> todos = filtrar(obraIds, perfilIds, desde, hasta);
 
-        /* Agrupa los partes por obra y dentro de cada obra por especialidad. */
-        Map<Long, Map<String, List<partes_trabajo>>> porObraEsp = new LinkedHashMap<>();
+        /* Agrupa primero por especialidad, luego por obra dentro de cada especialidad. */
+        Map<String, Map<Long, List<partes_trabajo>>> porEspObra = new LinkedHashMap<>();
         todos.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
                 .forEach(p -> {
                     String esp = p.getEspecialidad() != null
                             ? p.getEspecialidad().name() : "SIN";
-                    porObraEsp
-                            .computeIfAbsent(p.getObra().getId(), k -> new LinkedHashMap<>())
-                            .computeIfAbsent(esp, k -> new ArrayList<>())
+                    porEspObra
+                            .computeIfAbsent(esp, k -> new LinkedHashMap<>())
+                            .computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>())
                             .add(p);
                 });
+
+        /* Orden de especialidades: ELECTRICIDAD primero, luego FONTANERIA, luego el resto alfabético. */
+        List<String> ordenEsp = new ArrayList<>();
+        if (porEspObra.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
+        if (porEspObra.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
+        porEspObra.keySet().stream()
+                .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
+                .sorted()
+                .forEach(ordenEsp::add);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Document doc = construirDocumento(baos);
@@ -211,33 +221,23 @@ public class pdf_service {
         agregarCabeceraDocumento(doc, desde, hasta);
 
         boolean primerGrupo = true;
-        for (Map.Entry<Long, Map<String, List<partes_trabajo>>> obraEntry : porObraEsp.entrySet()) {
-            Map<String, List<partes_trabajo>> porEsp = obraEntry.getValue();
+        for (String esp : ordenEsp) {
+            Map<Long, List<partes_trabajo>> porObra = porEspObra.get(esp);
+            for (List<partes_trabajo> partesGrupo : porObra.values()) {
+                partes_trabajo primero = partesGrupo.get(0);
+                String nombreObra = primero.getObra().getNombre();
+                String codigoObra = primero.getObra().getCodigo();
+                String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
+                        ? "[" + codigoObra + "]  " : "";
+                evento.tituloActual = prefijoCodigo + nombreObra;
 
-            /* Ordena las especialidades: primero ELECTRICIDAD, luego FONTANERIA, luego el resto. */
-            List<String> ordenEsp = new ArrayList<>();
-            if (porEsp.containsKey("ELECTRICIDAD")) ordenEsp.add("ELECTRICIDAD");
-            if (porEsp.containsKey("FONTANERIA"))   ordenEsp.add("FONTANERIA");
-            porEsp.keySet().stream()
-                    .filter(k -> !k.equals("ELECTRICIDAD") && !k.equals("FONTANERIA"))
-                    .forEach(ordenEsp::add);
-
-            partes_trabajo primeraObra = porEsp.values().iterator().next().get(0);
-            String nombreObra = primeraObra.getObra().getNombre();
-            String codigoObra = primeraObra.getObra().getCodigo();
-            String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
-                    ? "[" + codigoObra + "]  " : "";
-            evento.tituloActual = prefijoCodigo + nombreObra;
-
-            for (String esp : ordenEsp) {
                 if (!primerGrupo) doc.newPage();
                 primerGrupo = false;
-                agregarGrupoAlDocumento(doc, nombreObra, esp, porEsp.get(esp), evento);
+                agregarGrupoAlDocumento(doc, nombreObra, esp, partesGrupo, evento, false);
             }
         }
 
-        /* Si no hay partes para los filtros, muestra un mensaje de "sin datos". */
-        if (porObraEsp.isEmpty()) agregarVacio(doc);
+        if (porEspObra.isEmpty()) agregarVacio(doc);
         doc.close();
         return baos.toByteArray();
     }
@@ -263,13 +263,16 @@ public class pdf_service {
 
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
-        agregarGrupoAlDocumento(doc, nombreObra, especialidad, partes, evento);
+        // FIX 1: esPorOperario = false → muestra código de obra
+        agregarGrupoAlDocumento(doc, nombreObra, especialidad, partes, evento, false);
         doc.close();
         return baos.toByteArray();
     }
 
     /* Genera un PDF para un operario concreto y una especialidad.
-       Similar a generarPdfGrupo pero con el nombre del operario como título. */
+       Los partes se agrupan por obra para que cada obra tenga su propia sección con título
+       "[código] NombreObra · Especialidad", igual que en el PDF por obra pero añadiendo
+       el nombre del operario en la cabecera de página. */
     private byte[] generarPdfOperarioEsp(
             String nombreOp,
             String especialidad,
@@ -281,48 +284,66 @@ public class pdf_service {
         Document doc = construirDocumento(baos);
         PdfWriter writer = PdfWriter.getInstance(doc, baos);
         CabeceraPiePaginaEvent evento = agregarCabeceraYPie(writer);
+        // La cabecera de página muestra el nombre del operario
         evento.tituloActual = nombreOp;
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
-        agregarGrupoAlDocumento(doc, nombreOp, especialidad, partes, evento);
+
+        // Agrupa los partes por obra (orden alfabético por nombre de obra)
+        Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
+        partes.stream()
+                .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
+                .forEach(p -> porObra
+                        .computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>())
+                        .add(p));
+
+        // Genera una sección por cada obra con el nombre real de la obra en el título
+        for (List<partes_trabajo> partesObra : porObra.values()) {
+            String nombreObra = partesObra.get(0).getObra().getNombre();
+            // esPorOperario = false → muestra código y nombre de obra en el título de sección
+            agregarGrupoAlDocumento(doc, nombreObra, especialidad, partesObra, evento, false);
+        }
+
         doc.close();
         return baos.toByteArray();
     }
 
-    /* Añade la cabecera de sección (nombre de obra + especialidad) y las tablas de cada operario al documento.
-       Agrupa los partes por operario y ordena cada grupo por fecha descendente. */
+    /* Añade la cabecera de sección (nombre de obra/operario + especialidad) y las tablas de cada operario
+       al documento. Agrupa los partes por operario y ordena cada grupo por fecha descendente.
+       FIX 1: el parámetro esPorOperario controla si se muestra el código de obra en el título de sección.
+       FIX 2: la celda de cabecera de sección se pasa a tablaOperario para que formen un único elemento
+              iText, evitando que la cabecera quede huérfana en una página y la tabla salte a la siguiente. */
     private void agregarGrupoAlDocumento(
             Document doc,
             String nombreObra,
             String especialidad,
             List<partes_trabajo> partes,
-            CabeceraPiePaginaEvent evento) throws Exception {
+            CabeceraPiePaginaEvent evento,
+            boolean esPorOperario)   // FIX 1: true cuando el PDF es por operario
+            throws Exception {
 
-        /* Construye el título de sección incluyendo el código de la obra si está disponible. */
+        // FIX 1: Solo añadir prefijo de código de obra cuando NO es un PDF por operario
         String codigoObra = partes.get(0).getObra().getCodigo();
-        String prefijoCodigo = (codigoObra != null && !codigoObra.isBlank())
+        String prefijoCodigo = (!esPorOperario && codigoObra != null && !codigoObra.isBlank())
                 ? "[" + codigoObra + "]  " : "";
+
         String tituloSeccion = prefijoCodigo + nombreObra;
         if (!especialidad.equals("SIN")) {
             tituloSeccion += "  ·  " + labelEspecialidad(especialidad);
         }
 
-        /* Crea una tabla de 1 columna para la cabecera de la sección. */
-        PdfPTable tablaHeader = new PdfPTable(1);
-        tablaHeader.setWidthPercentage(100);
-        tablaHeader.setSpacingBefore(12);
-        tablaHeader.setSpacingAfter(0);
-        tablaHeader.setKeepTogether(true);
-
         /* Color de fondo diferente según especialidad: amarillo para electricidad, azul para fontanería. */
         Color bgHeader = especialidad.equals("FONTANERIA") ? COLOR_HEADER_FONT : COLOR_HEADER_ELEC;
         Font fHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, COLOR_TEXTO_BLANCO);
-        PdfPCell celdaHeader = new PdfPCell(new Phrase(tituloSeccion, fHeader));
-        celdaHeader.setBackgroundColor(bgHeader);
-        celdaHeader.setPadding(8);
-        celdaHeader.setBorderWidth(0);
-        tablaHeader.addCell(celdaHeader);
-        doc.add(tablaHeader);
+
+        // FIX 2: Se construye la celda de sección pero ya NO se añade al doc como tabla independiente.
+        //        Se pasará directamente a cada tablaOperario como primera fila, así cabecera y datos
+        //        forman un único bloque y iText no puede separarlos entre páginas.
+        PdfPCell celdaSeccion = new PdfPCell(new Phrase(tituloSeccion, fHeader));
+        celdaSeccion.setColspan(4);
+        celdaSeccion.setBackgroundColor(bgHeader);
+        celdaSeccion.setPadding(8);
+        celdaSeccion.setBorderWidth(0);
 
         /* Agrupa los partes por operario (UUID) y ordena cada grupo por fecha descendente (más reciente primero). */
         Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
@@ -334,16 +355,26 @@ public class pdf_service {
         porOperario.values().forEach(lista ->
                 lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
 
-        /* Añade una tabla por cada operario al documento. */
+        // FIX 2: El primer operario recibe la celda de sección; el resto recibe null (sin duplicar cabecera).
+        boolean esPrimerOperario = true;
         for (List<partes_trabajo> partesOp : porOperario.values()) {
-            doc.add(tablaOperario(partesOp));
+            PdfPCell cabecera = esPrimerOperario ? celdaSeccion : null;
+            doc.add(tablaOperario(partesOp, cabecera));
+            esPrimerOperario = false;
         }
     }
 
-    /* Crea la tabla HTML de un operario con sus partes de trabajo. La tabla tiene 4 columnas:
+    /* Crea la tabla de un operario con sus partes de trabajo. La tabla tiene 4 columnas:
        fecha, horas, descripción y un separador invisible.
-       Incluye: cabecera del operario, filas de cada parte, total de horas, trabajos extra (si los hay) y firma. */
-    private PdfPTable tablaOperario(List<partes_trabajo> partesOp) throws Exception {
+       FIX 2: acepta una celdaSeccion opcional que se inserta como primera fila si no es null,
+              uniendo visualmente la cabecera azul/amarilla con los datos en un único elemento iText.
+       Incluye: cabecera de sección (opcional), cabecera del operario, filas de cada parte,
+                total de horas, trabajos extra (si los hay) y firma. */
+    private PdfPTable tablaOperario(
+            List<partes_trabajo> partesOp,
+            PdfPCell celdaSeccion)   // FIX 2: celda de sección a insertar como primera fila (puede ser null)
+            throws Exception {
+
         partes_trabajo primero = partesOp.get(0);
         String nombreOp = primero.getPerfil().getName()
                 + " " + primero.getPerfil().getApellidos();
@@ -351,9 +382,17 @@ public class pdf_service {
         PdfPTable tabla = new PdfPTable(4);
         tabla.setWidthPercentage(100);
         tabla.setWidths(new float[]{2f, 1f, 5f, 0.1f});
-        tabla.setSpacingBefore(0);
+        tabla.setSpacingBefore(12);
         tabla.setSpacingAfter(2);
-        tabla.setKeepTogether(true);
+        tabla.setKeepTogether(false);
+        // Permite que la tabla se parta entre páginas fila a fila
+        tabla.setSplitRows(true);
+        tabla.setSplitLate(false);
+
+        // Fila 1 (opcional): celda de sección azul/amarilla
+        if (celdaSeccion != null) {
+            tabla.addCell(celdaSeccion);
+        }
 
         /* Fila de cabecera con el nombre del operario (ocupa las 4 columnas). */
         Font fOp = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, COLOR_TEXTO_DARK);
@@ -367,6 +406,11 @@ public class pdf_service {
         celdaOp.setBorderWidthLeft(0);
         celdaOp.setBorderWidthRight(0);
         tabla.addCell(celdaOp);
+
+        // setHeaderRows: las N primeras filas se repiten al inicio de cada página si la tabla
+        // se parte. Con celdaSeccion son 2 filas (sección + operario); sin ella, 1 (solo operario).
+        // Esto garantiza que nunca quede la cabecera sola en una página sin sus datos.
+        tabla.setHeaderRows(celdaSeccion != null ? 2 : 1);
 
         /* Filas de cada parte de trabajo: fecha, horas, descripción. */
         double totalHoras = 0;
@@ -624,7 +668,8 @@ public class pdf_service {
         return h % 1 == 0 ? (int) h + "h" : h + "h";
     }
 
-    /* Limpia un nombre para usarlo como nombre de archivo: elimina caracteres no permitidos (solo permite letras, números, espacios, guiones y guiones bajos). */
+    /* Limpia un nombre para usarlo como nombre de archivo: elimina caracteres no permitidos
+       (solo permite letras, números, espacios, guiones y guiones bajos). */
     private String sanitizarNombre(String nombre) {
         return nombre.replaceAll("[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ _-]", "_").trim();
     }
