@@ -220,6 +220,7 @@ CREATE OR REPLACE FUNCTION public.sync_user_role()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 BEGIN
 UPDATE auth.users

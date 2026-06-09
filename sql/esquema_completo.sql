@@ -211,6 +211,7 @@ CREATE OR REPLACE FUNCTION public.sync_user_role()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+Set search_path = public, pg_catalog
 AS $$
 BEGIN
 UPDATE auth.users
