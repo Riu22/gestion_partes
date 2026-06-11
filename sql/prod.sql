@@ -73,7 +73,7 @@ CREATE TABLE public.partes_trabajo (
                                        especialidad       text CHECK (especialidad IN ('ELECTRICIDAD', 'FONTANERIA')),
                                        creado_por_gestor  boolean NOT NULL DEFAULT FALSE,
                                        firma_url          text,
-                                       nombre_firmador    text,
+                                       nombre_firmado    text,
                                        trabajos_extra     text,
                                        creado_el          timestamp with time zone DEFAULT now()
 );
