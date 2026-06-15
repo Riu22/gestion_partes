@@ -79,6 +79,7 @@ public class user_service {
         if (datosNuevos.activo() != null) perfilExistente.setActivo(datosNuevos.activo());
         if (datosNuevos.codigo() != null) perfilExistente.setCodigo(datosNuevos.codigo());
         if (datosNuevos.postventa() != null) perfilExistente.setPostventa(datosNuevos.postventa());
+        if (datosNuevos.email() != null) perfilExistente.setEmail(datosNuevos.email()); // <-- FIX
         if (datosNuevos.especialidad() != null) {
             perfilExistente.setEspecialidad(
                     especialidad.valueOf(datosNuevos.especialidad().toUpperCase())
@@ -90,7 +91,6 @@ public class user_service {
         perfilExistente.setCreadoEl(OffsetDateTime.now());
         perfil saved = user_repo.save(perfilExistente);
 
-        // Si se solicita cambio de email o contrasena, actualizar en Supabase Auth
         if (datosNuevos.email() != null || datosNuevos.password() != null) {
             update_auth_user(id, datosNuevos.email(), datosNuevos.password());
         }
