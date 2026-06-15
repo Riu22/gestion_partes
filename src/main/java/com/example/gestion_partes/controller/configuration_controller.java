@@ -25,7 +25,7 @@ public class configuration_controller {
     /* POST /habilitar/{id}: añade una o varias fechas libres para un perfil concreto.
        Solo ADMINISTRACION y GESTION pueden hacerlo. */
     @PostMapping("/habilitar/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> habilitar(
             @PathVariable String id,
             @RequestBody List<LocalDate> fechas) {
@@ -35,7 +35,7 @@ public class configuration_controller {
 
     /* DELETE /deshabilitar/{id}/{fecha}: elimina una fecha libre concreta de un perfil. */
     @DeleteMapping("/deshabilitar/{id}/{fecha}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> deshabilitarFecha(
             @PathVariable String id,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
@@ -45,7 +45,7 @@ public class configuration_controller {
 
     /* DELETE /deshabilitar/{id}: elimina todas las fechas libres de un perfil. */
     @DeleteMapping("/deshabilitar/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> deshabilitarTodas(@PathVariable String id) {
         service.deshabilitarTodas(id);
         return ResponseEntity.ok("Todas las fechas eliminadas");
@@ -53,7 +53,7 @@ public class configuration_controller {
 
     /* GET /: devuelve un mapa con todos los usuarios activos y sus fechas libres asignadas. */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<Map<String, List<LocalDate>>> listar() {
         return ResponseEntity.ok(service.getUsuariosActivos());
     }

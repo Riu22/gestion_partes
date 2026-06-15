@@ -25,7 +25,7 @@ public class ausencias_controller {
     /* GET /dias-sin-parte: devuelve un mapa con los días que no hay partes registrados.
        Solo ADMINISTRACION y GESTION pueden verlo. */
     @GetMapping("/dias-sin-parte")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<Map<String, Object>> diasSinParte() {
         return ResponseEntity.ok(ausenciasService.getDiasSinParte());
     }
@@ -33,7 +33,7 @@ public class ausencias_controller {
     /* POST /laborales: crea una nueva ausencia laboral (baja, vacaciones, paternidad) para un perfil.
        Recibe los datos en el cuerpo (AusenciaRequestDto): perfilId, tipo, fechas, observaciones y obraId opcional. */
     @PostMapping("/laborales")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<Ausencia> crear(@RequestBody AusenciaRequestDto req) {
         return ResponseEntity.ok(ausenciasService.crear(
                 UUID.fromString(req.perfilId()),
@@ -47,7 +47,7 @@ public class ausencias_controller {
 
     /* DELETE /laborales/{id}: elimina una ausencia por su ID. */
     @DeleteMapping("/laborales/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         ausenciasService.eliminar(id);
         return ResponseEntity.noContent().build();
@@ -55,7 +55,7 @@ public class ausencias_controller {
 
     /* GET /laborales/perfil/{perfilId}: devuelve todas las ausencias de un perfil concreto. */
     @GetMapping("/laborales/perfil/{perfilId}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<List<Ausencia>> getDeUsuario(@PathVariable String perfilId) {
         return ResponseEntity.ok(
                 ausenciasService.getDeUsuario(UUID.fromString(perfilId))
@@ -64,7 +64,7 @@ public class ausencias_controller {
 
     /* GET /laborales/perfil/{perfilId}/historial: devuelve un resumen/historial de ausencias de un perfil. */
     @GetMapping("/laborales/perfil/{perfilId}/historial")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<Map<String, Object>> getHistorial(
             @PathVariable String perfilId) {
         return ResponseEntity.ok(

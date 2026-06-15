@@ -35,7 +35,7 @@ public class obra_controller {
     /* POST /: crea una nueva obra. Solo ADMINISTRACION y GESTION pueden crear.
        Recibe los datos en obra_dto (nombre, ubicación, fechas, etc.). */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> create_obra(@RequestBody obra_dto new_obra){
         try {
             obra createdObra = obra_service.create_obra(new_obra);
@@ -56,7 +56,7 @@ public class obra_controller {
 
     /* PUT /update_obra/{id}: actualiza los datos de una obra existente. */
     @PutMapping("/update_obra/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<obra> update_obra(@PathVariable Long id, @RequestBody obra_dto obra_datos){
         return ResponseEntity.ok(obra_service.update_obra(id, obra_datos));
     }

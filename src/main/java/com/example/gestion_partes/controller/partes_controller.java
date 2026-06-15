@@ -44,7 +44,7 @@ public class partes_controller {
     /* POST /new_parte: crea un nuevo parte de trabajo para operario o encargado.
        Recibe los datos en el cuerpo (partes_dto) y la autenticación para identificar al usuario. */
     @PostMapping("/new_parte")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','OPERARIO','ENCARGADO')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','OPERARIO','ENCARGADO')")
     public ResponseEntity<?> create_parte(
             @RequestBody partes_dto dto,
             Authentication auth) {
@@ -77,7 +77,7 @@ public class partes_controller {
     /* GET /fechas-con-parte/{id}: devuelve la lista de fechas en las que un perfil tiene partes registrados.
        Sirve para bloquear días en el DatePicker del frontend. */
     @GetMapping("/fechas-con-parte/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<List<LocalDate>> fechasConParte(@PathVariable String id) {
         return ResponseEntity.ok(partes_service.getFechasConParte(id));
     }
@@ -102,7 +102,7 @@ public class partes_controller {
 
     /* PUT /update_parte_jefe/{parteId}: actualiza un parte de jefe de obra existente. */
     @PutMapping("/update_parte_jefe/{parteId}")
-    @PreAuthorize("hasAnyRole('JEFE_DE_OBRA','ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('JEFE_DE_OBRA','ADMINISTRACION')")
     public ResponseEntity<partes_jefe> update_parte_jefe(
             @PathVariable Long parteId,
             @RequestBody partes_jefe_dto dto,
@@ -122,7 +122,7 @@ public class partes_controller {
     /* PUT /validar_jefe/{parteId}: valida (aprueba) un parte de jefe de obra.
        Solo ADMINISTRACION y GESTION pueden validar. */
     @PutMapping("/validar_jefe/{parteId}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<?> validar_parte_jefe(
             @PathVariable Long parteId,
             Authentication auth) {
@@ -213,7 +213,7 @@ public class partes_controller {
 
     /* GET /informe_jefe/{parteId}: genera un informe detallado de un parte de jefe de obra. */
     @GetMapping("/informe_jefe/{parteId}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','JEFE_DE_OBRA')")
     public ResponseEntity<informe_jefe_dto> informe_parte_jefe(
             @PathVariable Long parteId,
             Authentication auth) {
@@ -223,7 +223,7 @@ public class partes_controller {
 
     /* GET /resumen-mensual-jefe: devuelve un resumen mensual de partes de jefe de obra para un año y mes dados. */
     @GetMapping("/resumen-mensual-jefe")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION','JEFE_DE_OBRA')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','JEFE_DE_OBRA')")
     public ResponseEntity<resumen_mensual_jefe_dto> resumen_mensual_jefe(
             @RequestParam int anio,
             @RequestParam int mes,

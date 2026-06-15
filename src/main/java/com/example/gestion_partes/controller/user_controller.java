@@ -41,7 +41,7 @@ public class user_controller {
     /* POST /create_user: crea un nuevo usuario en Supabase Auth y su perfil en la BD local.
        Recibe los datos en create_user_dto (email, password, nombre, apellidos, rol, etc.). */
     @PostMapping("/create_user")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<String> create_user(@RequestBody create_user_dto new_user) {
         user_service.create_user(new_user);
         return new ResponseEntity<>("Usuario creado correctamente en Auth y Perfiles", HttpStatus.CREATED);
@@ -62,14 +62,14 @@ public class user_controller {
 
     /* PUT /update_user/{id}: actualiza los datos del perfil de un usuario (nombre, apellidos, rol, etc.). */
     @PutMapping("/update_user/{id}")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION', 'GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<perfil> update_profile(@PathVariable UUID id, @RequestBody update_user_dto perfil_datos) {
         return ResponseEntity.ok(user_service.update_profile(id, perfil_datos));
     }
 
     /* GET /all: devuelve todos los perfiles del sistema ordenados por activo (primero los activos) y luego alfabéticamente. */
     @GetMapping("/all")
-    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION')")
     public ResponseEntity<List<perfil>> get_all_users() {
         return ResponseEntity.ok(perfil_repo.findAllByOrderByActivoDescApellidosAscNameAsc());
     }
