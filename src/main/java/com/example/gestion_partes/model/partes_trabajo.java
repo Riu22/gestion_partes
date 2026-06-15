@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 /*
  * ENTIDAD: partes_trabajo (Partes de trabajo diarios)
@@ -25,6 +26,7 @@ import java.time.LocalDate;
  * - El nombre de quien firmo
  * - Notas de trabajos extra si los hubo
  * - Si fue creado por un gestor/admin (no por el propio trabajador)
+ * - La fecha y hora exacta en que se creó el registro en el sistema
  */
 @Entity
 @Table(name = "partes_trabajo", schema = "public")
@@ -72,6 +74,12 @@ public class partes_trabajo {
     @Column(name = "creado_por_gestor", nullable = false)
     private boolean creado_por_gestor = false;
 
+    // Fecha y hora exacta en que se insertó el registro en la base de datos.
+    // Corresponde al campo "creado_el timestamptz DEFAULT now()" de la tabla.
+    // Solo lectura: la BD lo asigna automáticamente; nunca se escribe desde Java.
+    @Column(name = "creado_el", insertable = false, updatable = false)
+    private OffsetDateTime creado_el;
+
     // ─── Constructores ─────────────────────────────────────────────────────────
 
     // Constructor vacio requerido por JPA (Hibernate) para crear objetos
@@ -94,13 +102,6 @@ public class partes_trabajo {
     }
 
     // ─── Getters y setters ─────────────────────────────────────────────────────
-
-    /*
-     * GETTERS Y SETTERS
-     *
-     * Los metodos "get..." devuelven el valor del campo correspondiente.
-     * Los metodos "set..." permiten modificar el valor del campo.
-     */
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -150,4 +151,8 @@ public class partes_trabajo {
     // Descripcion de trabajos extra o adicionales realizados
     public String getTrabajos_extra() { return trabajos_extra; }
     public void setTrabajos_extra(String trabajos_extra) { this.trabajos_extra = trabajos_extra; }
+
+    // Fecha y hora de creación del registro (asignada automáticamente por la BD)
+    public OffsetDateTime getCreado_el() { return creado_el; }
+    // No hay setter: este campo es de solo lectura, la BD lo gestiona con DEFAULT now()
 }

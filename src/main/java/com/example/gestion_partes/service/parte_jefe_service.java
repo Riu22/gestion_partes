@@ -300,34 +300,38 @@ public class parte_jefe_service {
             partes = parte_jefe_repo.findByPerfilIdAndMes(usuario.getId(), anio, mes);
         }
 
-        double totalHoras = partes.stream()
-                .mapToDouble(p -> p.getTotalHorasLaborables() != null ? p.getTotalHorasLaborables() : 0.0)
-                .sum();
-
+        // ✅ Paso 1: acumular horas por obra sin calcular porcentajes aún
         Map<Long, resumen_obra_dto> obraMap = new LinkedHashMap<>();
         for (partes_jefe parte : partes) {
             for (partes_jefe_obra linea : parte.getObras()) {
                 if (linea.getObra() == null) continue;
                 Long obraId = linea.getObra().getId();
                 resumen_obra_dto existente = obraMap.get(obraId);
-
                 double hE = existente != null ? existente.horas_electricas() : 0.0;
                 double hM = existente != null ? existente.horas_mecanicas() : 0.0;
                 hE += linea.getHoras_electricas() != null ? linea.getHoras_electricas() : 0.0;
                 hM += linea.getHoras_mecanicas() != null ? linea.getHoras_mecanicas() : 0.0;
-
-                double pctE = totalHoras > 0 ? (hE / totalHoras) * 100.0 : 0.0;
-                double pctM = totalHoras > 0 ? (hM / totalHoras) * 100.0 : 0.0;
-
                 obraMap.put(obraId, new resumen_obra_dto(
-                        linea.getObra().getNombre(),
-                        linea.getObra().getCodigo(),
-                        hE, hM,
-                        Math.round(pctE * 100.0) / 100.0,
-                        Math.round(pctM * 100.0) / 100.0
-                ));
+                        linea.getObra().getNombre(), linea.getObra().getCodigo(),
+                        hE, hM, 0.0, 0.0));
             }
         }
+
+        // Paso 2: totalHoras = suma real de horas trabajadas ese mes
+        double totalHoras = obraMap.values().stream()
+                .mapToDouble(o -> o.horas_electricas() + o.horas_mecanicas())
+                .sum();
+
+        // Paso 3: recalcular porcentajes sobre el total real
+        obraMap.replaceAll((id, o) -> {
+            double pctE = totalHoras > 0 ? (o.horas_electricas() / totalHoras) * 100.0 : 0.0;
+            double pctM = totalHoras > 0 ? (o.horas_mecanicas()  / totalHoras) * 100.0 : 0.0;
+            return new resumen_obra_dto(
+                    o.nombre_obra(), o.codigo_obra(),
+                    o.horas_electricas(), o.horas_mecanicas(),
+                    Math.round(pctE * 100.0) / 100.0,
+                    Math.round(pctM * 100.0) / 100.0);
+        });
 
         List<resumen_parte_dto> partesDto = partes.stream()
                 .map(p -> new resumen_parte_dto(
@@ -410,11 +414,7 @@ public class parte_jefe_service {
             List<partes_jefe> partesUsuario = entry.getValue();
             perfil p = partesUsuario.get(0).getPerfil();
 
-            double totalHoras = partesUsuario.stream()
-                    .mapToDouble(x -> x.getTotalHorasLaborables() != null
-                            ? x.getTotalHorasLaborables() : 0.0)
-                    .sum();
-
+            //  Paso 1: acumular horas por obra sin calcular porcentajes aún
             Map<Long, resumen_obra_dto> obraMap = new LinkedHashMap<>();
             for (partes_jefe parte : partesUsuario) {
                 for (partes_jefe_obra linea : parte.getObras()) {
@@ -425,15 +425,27 @@ public class parte_jefe_service {
                     double hM = existente != null ? existente.horas_mecanicas() : 0.0;
                     hE += linea.getHoras_electricas() != null ? linea.getHoras_electricas() : 0.0;
                     hM += linea.getHoras_mecanicas() != null ? linea.getHoras_mecanicas() : 0.0;
-                    double pctE = totalHoras > 0 ? (hE / totalHoras) * 100.0 : 0.0;
-                    double pctM = totalHoras > 0 ? (hM / totalHoras) * 100.0 : 0.0;
                     obraMap.put(obraId, new resumen_obra_dto(
                             linea.getObra().getNombre(), linea.getObra().getCodigo(),
-                            hE, hM,
-                            Math.round(pctE * 100.0) / 100.0,
-                            Math.round(pctM * 100.0) / 100.0));
+                            hE, hM, 0.0, 0.0));
                 }
             }
+
+            //  Paso 2: totalHoras = suma real de horas trabajadas ese mes
+            double totalHoras = obraMap.values().stream()
+                    .mapToDouble(o -> o.horas_electricas() + o.horas_mecanicas())
+                    .sum();
+
+            // Paso 3: recalcular porcentajes sobre el total real
+            obraMap.replaceAll((id, o) -> {
+                double pctE = totalHoras > 0 ? (o.horas_electricas() / totalHoras) * 100.0 : 0.0;
+                double pctM = totalHoras > 0 ? (o.horas_mecanicas()  / totalHoras) * 100.0 : 0.0;
+                return new resumen_obra_dto(
+                        o.nombre_obra(), o.codigo_obra(),
+                        o.horas_electricas(), o.horas_mecanicas(),
+                        Math.round(pctE * 100.0) / 100.0,
+                        Math.round(pctM * 100.0) / 100.0);
+            });
 
             Map<String, Object> usuarioData = new LinkedHashMap<>();
             usuarioData.put("nombre", (p.getName() + " " + p.getApellidos()).trim());

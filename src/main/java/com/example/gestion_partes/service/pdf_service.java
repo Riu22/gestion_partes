@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -30,7 +31,8 @@ public class pdf_service {
     @Autowired
     private partes_trabajo_repo partes_trabajo_repo;
 
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter FMT     = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter FMT_DT  = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /* Colores corporativos para los distintos elementos del PDF. */
     private static final Color COLOR_HEADER_ELEC   = new Color(255, 185, 0);
@@ -45,6 +47,10 @@ public class pdf_service {
     private static final Color COLOR_EXTRA_BORDER  = new Color(251, 191, 36);
     private static final Color COLOR_FIRMA_BG      = new Color(240, 253, 244);
     private static final Color COLOR_FIRMA_BORDER  = new Color(134, 239, 172);
+
+    /* Color para resaltar fechas de registro muy posteriores al parte (>1 día de diferencia). */
+    private static final Color COLOR_REG_TARDIO    = new Color(194, 65, 12);   // naranja oscuro
+    private static final Color COLOR_REG_NORMAL    = new Color(120, 120, 140); // gris neutro
 
     /* Clase interna que maneja la cabecera dinámica (nombre de obra/operario) y el pie de página (número de página).
        Se usa como evento de página de iText para que aparezca en todas las páginas automáticamente. */
@@ -263,7 +269,6 @@ public class pdf_service {
 
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
-        // FIX 1: esPorOperario = false → muestra código de obra
         agregarGrupoAlDocumento(doc, nombreObra, especialidad, partes, evento, false);
         doc.close();
         return baos.toByteArray();
@@ -284,12 +289,10 @@ public class pdf_service {
         Document doc = construirDocumento(baos);
         PdfWriter writer = PdfWriter.getInstance(doc, baos);
         CabeceraPiePaginaEvent evento = agregarCabeceraYPie(writer);
-        // La cabecera de página muestra el nombre del operario
         evento.tituloActual = nombreOp;
         doc.open();
         agregarCabeceraDocumento(doc, desde, hasta);
 
-        // Agrupa los partes por obra (orden alfabético por nombre de obra)
         Map<Long, List<partes_trabajo>> porObra = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getObra().getNombre()))
@@ -297,10 +300,8 @@ public class pdf_service {
                         .computeIfAbsent(p.getObra().getId(), k -> new ArrayList<>())
                         .add(p));
 
-        // Genera una sección por cada obra con el nombre real de la obra en el título
         for (List<partes_trabajo> partesObra : porObra.values()) {
             String nombreObra = partesObra.get(0).getObra().getNombre();
-            // esPorOperario = false → muestra código y nombre de obra en el título de sección
             agregarGrupoAlDocumento(doc, nombreObra, especialidad, partesObra, evento, false);
         }
 
@@ -309,7 +310,7 @@ public class pdf_service {
     }
 
     /* Añade la cabecera de sección (nombre de obra/operario + especialidad) y las tablas de cada operario
-       al documento. Agrupa los partes por operario y ordena cada grupo por fecha descendente.
+       al documento. Agrupa los partes por operario y ordena cada grupo por fecha descendente (más reciente primero).
        FIX 1: el parámetro esPorOperario controla si se muestra el código de obra en el título de sección.
        FIX 2: la celda de cabecera de sección se pasa a tablaOperario para que formen un único elemento
               iText, evitando que la cabecera quede huérfana en una página y la tabla salte a la siguiente. */
@@ -319,10 +320,9 @@ public class pdf_service {
             String especialidad,
             List<partes_trabajo> partes,
             CabeceraPiePaginaEvent evento,
-            boolean esPorOperario)   // FIX 1: true cuando el PDF es por operario
+            boolean esPorOperario)
             throws Exception {
 
-        // FIX 1: Solo añadir prefijo de código de obra cuando NO es un PDF por operario
         String codigoObra = partes.get(0).getObra().getCodigo();
         String prefijoCodigo = (!esPorOperario && codigoObra != null && !codigoObra.isBlank())
                 ? "[" + codigoObra + "]  " : "";
@@ -332,20 +332,15 @@ public class pdf_service {
             tituloSeccion += "  ·  " + labelEspecialidad(especialidad);
         }
 
-        /* Color de fondo diferente según especialidad: amarillo para electricidad, azul para fontanería. */
         Color bgHeader = especialidad.equals("FONTANERIA") ? COLOR_HEADER_FONT : COLOR_HEADER_ELEC;
         Font fHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, COLOR_TEXTO_BLANCO);
 
-        // FIX 2: Se construye la celda de sección pero ya NO se añade al doc como tabla independiente.
-        //        Se pasará directamente a cada tablaOperario como primera fila, así cabecera y datos
-        //        forman un único bloque y iText no puede separarlos entre páginas.
         PdfPCell celdaSeccion = new PdfPCell(new Phrase(tituloSeccion, fHeader));
         celdaSeccion.setColspan(4);
         celdaSeccion.setBackgroundColor(bgHeader);
         celdaSeccion.setPadding(8);
         celdaSeccion.setBorderWidth(0);
 
-        /* Agrupa los partes por operario (UUID) y ordena cada grupo por fecha descendente (más reciente primero). */
         Map<UUID, List<partes_trabajo>> porOperario = new LinkedHashMap<>();
         partes.stream()
                 .sorted(Comparator.comparing(p -> p.getPerfil().getApellidos()))
@@ -355,7 +350,6 @@ public class pdf_service {
         porOperario.values().forEach(lista ->
                 lista.sort(Comparator.comparing(partes_trabajo::getFecha).reversed()));
 
-        // FIX 2: El primer operario recibe la celda de sección; el resto recibe null (sin duplicar cabecera).
         boolean esPrimerOperario = true;
         for (List<partes_trabajo> partesOp : porOperario.values()) {
             PdfPCell cabecera = esPrimerOperario ? celdaSeccion : null;
@@ -364,15 +358,13 @@ public class pdf_service {
         }
     }
 
-    /* Crea la tabla de un operario con sus partes de trabajo. La tabla tiene 4 columnas:
-       fecha, horas, descripción y un separador invisible.
-       FIX 2: acepta una celdaSeccion opcional que se inserta como primera fila si no es null,
-              uniendo visualmente la cabecera azul/amarilla con los datos en un único elemento iText.
-       Incluye: cabecera de sección (opcional), cabecera del operario, filas de cada parte,
-                total de horas, trabajos extra (si los hay) y firma. */
+    /* Crea la tabla de un operario con sus partes de trabajo.
+       Cada fila muestra: fecha del parte + fecha de registro (si difiere >1 día, en naranja),
+       horas, descripción y separador invisible.
+       FIX 2: acepta una celdaSeccion opcional que se inserta como primera fila si no es null. */
     private PdfPTable tablaOperario(
             List<partes_trabajo> partesOp,
-            PdfPCell celdaSeccion)   // FIX 2: celda de sección a insertar como primera fila (puede ser null)
+            PdfPCell celdaSeccion)
             throws Exception {
 
         partes_trabajo primero = partesOp.get(0);
@@ -385,7 +377,6 @@ public class pdf_service {
         tabla.setSpacingBefore(12);
         tabla.setSpacingAfter(2);
         tabla.setKeepTogether(false);
-        // Permite que la tabla se parta entre páginas fila a fila
         tabla.setSplitRows(true);
         tabla.setSplitLate(false);
 
@@ -407,24 +398,28 @@ public class pdf_service {
         celdaOp.setBorderWidthRight(0);
         tabla.addCell(celdaOp);
 
-        // setHeaderRows: las N primeras filas se repiten al inicio de cada página si la tabla
-        // se parte. Con celdaSeccion son 2 filas (sección + operario); sin ella, 1 (solo operario).
-        // Esto garantiza que nunca quede la cabecera sola en una página sin sus datos.
         tabla.setHeaderRows(celdaSeccion != null ? 2 : 1);
 
-        /* Filas de cada parte de trabajo: fecha, horas, descripción. */
+        /* Filas de cada parte de trabajo: fecha, horas, descripción y (si procede) fila de registro. */
         double totalHoras = 0;
         boolean par = false;
         for (partes_trabajo p : partesOp) {
             Color bgFila = par ? COLOR_FILA_PAR : Color.WHITE;
             par = !par;
-            agregarCeldaDato(tabla, FMT.format(p.getFecha()), bgFila, Element.ALIGN_CENTER);
-            agregarCeldaDato(tabla, formatHoras(p.getHoras_normales()), bgFila, Element.ALIGN_CENTER);
+
+            // Fila principal: fecha del parte, horas (en negrita), descripción
+            agregarCeldaDato(tabla, FMT.format(p.getFecha()),           bgFila, Element.ALIGN_CENTER,true);
+            agregarCeldaDato(tabla, formatHoras(p.getHoras_normales()), bgFila, Element.ALIGN_CENTER, true);
             String desc = (p.getDescripcion() != null && !p.getDescripcion().isBlank())
                     ? p.getDescripcion() : "Sin descripción";
             agregarCeldaDato(tabla, desc, bgFila, Element.ALIGN_LEFT);
             agregarCeldaDato(tabla, "", bgFila, Element.ALIGN_LEFT);
             totalHoras += p.getHoras_normales();
+
+            // Fila de registro: solo si existe creado_el y hay diferencia notable
+            if (p.getCreado_el() != null) {
+                agregarFilaRegistro(tabla, p);
+            }
         }
 
         /* Fila de total de horas del operario. */
@@ -449,7 +444,6 @@ public class pdf_service {
                 .collect(Collectors.joining("\n"));
 
         if (!trabajosExtraAcumulados.isBlank()) {
-            /* Etiqueta "Trabajos extra" con fondo amarillo claro. */
             Font fExtraLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
                     new Color(146, 64, 14));
             PdfPCell celdaExtraLabel = new PdfPCell(new Phrase("Trabajos extra", fExtraLabel));
@@ -466,7 +460,6 @@ public class pdf_service {
             celdaExtraLabel.setBorderWidthRight(0);
             tabla.addCell(celdaExtraLabel);
 
-            /* Contenido de los trabajos extra. */
             Font fExtra = FontFactory.getFont(FontFactory.HELVETICA, 8,
                     new Color(92, 45, 14));
             PdfPCell celdaExtra = new PdfPCell(new Phrase(trabajosExtraAcumulados, fExtra));
@@ -497,6 +490,48 @@ public class pdf_service {
         return tabla;
     }
 
+    /* Añade una fila completa (ocupa las 4 columnas) indicando cuándo se registró el parte.
+       Muestra fecha y hora exacta de creación (creado_el) en zona Europe/Madrid.
+       Si se registró más de 1 día después de la fecha del parte, el fondo y el texto
+       se muestran en naranja para avisar de que fue introducido a posteriori.
+       Si la diferencia es de 1 día o menos, se muestra en gris neutro discreto. */
+    private void agregarFilaRegistro(PdfPTable tabla, partes_trabajo p) {
+        java.time.ZonedDateTime zdt = p.getCreado_el()
+                .toInstant()
+                .atZone(ZoneId.of("Europe/Madrid"));
+
+        LocalDate fechaRegistro = zdt.toLocalDate();
+        long diasDiferencia = java.time.temporal.ChronoUnit.DAYS.between(p.getFecha(), fechaRegistro);
+        boolean tardio = diasDiferencia > 1;
+
+        Color bgReg  = tardio ? new Color(255, 237, 213) : new Color(245, 245, 248); // naranja pálido / gris pálido
+        Color fgReg  = tardio ? COLOR_REG_TARDIO          : COLOR_REG_NORMAL;
+        Color border = tardio ? new Color(251, 146, 60)   : COLOR_BORDER;
+
+        Font fRegNormal = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE,     7, fgReg);
+        Font fRegBold   = FontFactory.getFont(FontFactory.HELVETICA_BOLDOBLIQUE, 7, fgReg);
+
+        Paragraph contenidoReg = new Paragraph();
+        contenidoReg.add(new Chunk("Registrado el ", fRegNormal));
+        contenidoReg.add(new Chunk(FMT_DT.format(zdt), fRegBold));
+        if (tardio) contenidoReg.add(new Chunk("  ⚠ parte introducido a posteriori", fRegNormal));
+
+        PdfPCell celda = new PdfPCell(contenidoReg);
+        celda.setColspan(4);
+        celda.setBackgroundColor(bgReg);
+        celda.setPaddingTop(2);
+        celda.setPaddingBottom(3);
+        celda.setPaddingLeft(10);
+        celda.setPaddingRight(8);
+        celda.setHorizontalAlignment(Element.ALIGN_LEFT);
+        celda.setBorderColor(border);
+        celda.setBorderWidthTop(0);
+        celda.setBorderWidthBottom(0.5f);
+        celda.setBorderWidthLeft(tardio ? 2f : 0);
+        celda.setBorderWidthRight(0);
+        tabla.addCell(celda);
+    }
+
     /* Añade una fila con la imagen de firma dentro de la tabla del operario.
        Descarga la imagen desde la URL almacenada en el parte de trabajo y la escala para mostrarla.
        Si no se puede descargar la imagen, muestra un texto indicando que no está disponible. */
@@ -508,7 +543,6 @@ public class pdf_service {
             Image firmaImg = Image.getInstance(imagenBytes);
             firmaImg.scaleToFit(120, 50);
 
-            /* Etiqueta con el nombre de la persona que firmó. */
             String nombreFirmador = parte.getNombre_firmado() != null
                     ? parte.getNombre_firmado() : "Firmado";
             Font fFirmaLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8,
@@ -528,7 +562,6 @@ public class pdf_service {
             celdaFirmaLabel.setBorderWidthRight(0);
             tabla.addCell(celdaFirmaLabel);
 
-            /* Imagen de la firma escalada. */
             PdfPCell celdaFirmaImg = new PdfPCell(firmaImg, false);
             celdaFirmaImg.setColspan(4);
             celdaFirmaImg.setBackgroundColor(COLOR_FIRMA_BG);
@@ -545,7 +578,6 @@ public class pdf_service {
             tabla.addCell(celdaFirmaImg);
 
         } catch (Exception e) {
-            /* Si falla la descarga o carga de la imagen, muestra un texto alternativo en cursiva. */
             try {
                 Font fFirmaError = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, Color.GRAY);
                 String nombreFirmador = parte.getNombre_firmado() != null
@@ -623,9 +655,18 @@ public class pdf_service {
         doc.add(p);
     }
 
-    /* Crea una celda de datos estándar en una tabla PDF: recibe texto, color de fondo y alineación. */
+    /* Crea una celda de datos estándar en una tabla PDF: recibe texto, color de fondo y alineación.
+       Sobrecarga sin negrita para mantener compatibilidad con llamadas existentes. */
     private void agregarCeldaDato(PdfPTable tabla, String texto, Color bg, int align) {
-        Font f = FontFactory.getFont(FontFactory.HELVETICA, 9, COLOR_TEXTO_DARK);
+        agregarCeldaDato(tabla, texto, bg, align, false);
+    }
+
+    /* Crea una celda de datos en una tabla PDF con soporte opcional de negrita.
+       Cuando negrita=true usa HELVETICA_BOLD, útil para resaltar las horas. */
+    private void agregarCeldaDato(PdfPTable tabla, String texto, Color bg, int align, boolean negrita) {
+        Font f = negrita
+                ? FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, COLOR_TEXTO_DARK)
+                : FontFactory.getFont(FontFactory.HELVETICA,      9, COLOR_TEXTO_DARK);
         PdfPCell cell = new PdfPCell(new Phrase(texto, f));
         cell.setBackgroundColor(bg);
         cell.setPaddingTop(4);
