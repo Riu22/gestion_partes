@@ -481,7 +481,7 @@ public class parte_jefe_service {
             // ── Estilos reutilizables ──
             org.apache.poi.xssf.usermodel.XSSFCellStyle estCabecera = wb.createCellStyle();
             estCabecera.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
-                    new byte[]{(byte)0x15, (byte)0x65, (byte)0xC0}, null)); // azul oscuro
+                    new byte[]{(byte)0x15, (byte)0x65, (byte)0xC0}, null));
             estCabecera.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
             org.apache.poi.xssf.usermodel.XSSFFont fCabecera = wb.createFont();
             fCabecera.setBold(true);
@@ -492,7 +492,7 @@ public class parte_jefe_service {
 
             org.apache.poi.xssf.usermodel.XSSFCellStyle estColHead = wb.createCellStyle();
             estColHead.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
-                    new byte[]{(byte)0xE3,(byte)0xF2,(byte)0xFD}, null)); // azul pálido
+                    new byte[]{(byte)0xE3,(byte)0xF2,(byte)0xFD}, null));
             estColHead.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
             org.apache.poi.xssf.usermodel.XSSFFont fColHead = wb.createFont();
             fColHead.setBold(true);
@@ -500,7 +500,7 @@ public class parte_jefe_service {
 
             org.apache.poi.xssf.usermodel.XSSFCellStyle estTotal = wb.createCellStyle();
             estTotal.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
-                    new byte[]{(byte)0xE8,(byte)0xF5,(byte)0xE9}, null)); // verde pálido
+                    new byte[]{(byte)0xE8,(byte)0xF5,(byte)0xE9}, null));
             estTotal.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
             org.apache.poi.xssf.usermodel.XSSFFont fTotal = wb.createFont();
             fTotal.setBold(true);
@@ -511,9 +511,8 @@ public class parte_jefe_service {
                     new byte[]{(byte)0xFA,(byte)0xFA,(byte)0xFA}, null));
             estFilaPar.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
 
-            // Formato numérico: todos los decimales que tenga el double
             org.apache.poi.ss.usermodel.DataFormat fmt = wb.createDataFormat();
-            short fmtNum = fmt.getFormat("0.###############"); // hasta 15 decimales, sin ceros innecesarios
+            short fmtNum = fmt.getFormat("0.###############");
 
             org.apache.poi.xssf.usermodel.XSSFCellStyle estNum = wb.createCellStyle();
             estNum.setDataFormat(fmtNum);
@@ -526,6 +525,10 @@ public class parte_jefe_service {
             estNumTotal.cloneStyleFrom(estTotal);
             estNumTotal.setDataFormat(fmtNum);
 
+            // Nombre del mes en español
+            String nombreMes = java.time.Month.of(mes)
+                    .getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("es", "ES"));
+
             for (Map<String, Object> u : usuarios) {
                 String nombre = (String) u.getOrDefault("nombre", "Sin nombre");
                 double totalHoras = u.get("total_horas_laborables") instanceof Number n
@@ -533,7 +536,6 @@ public class parte_jefe_service {
                 @SuppressWarnings("unchecked")
                 List<resumen_obra_dto> obras = (List<resumen_obra_dto>) u.get("obras");
 
-                // Nombre de hoja: máx 31 chars, sin caracteres prohibidos por Excel
                 String nombreHoja = nombre.replaceAll("[\\\\/*?:\\[\\]]", "_");
                 if (nombreHoja.length() > 31) nombreHoja = nombreHoja.substring(0, 31);
 
@@ -541,11 +543,12 @@ public class parte_jefe_service {
 
                 // ── Fila 0: cabecera del jefe ──
                 org.apache.poi.ss.usermodel.Row fila0 = sheet.createRow(0);
-                ponerCelda(fila0, 0, "Jefe de obra", estCabecera);
-                ponerCelda(fila0, 1, nombre,         estCabecera);
-                ponerCelda(fila0, 2, "Total horas",  estCabecera);
-                ponerCeldaNum(fila0, 3, totalHoras,  estCabecera); // total en la cabecera sin formato decimal especial
-                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 3));
+                ponerCelda(fila0, 0, "Jefe de obra",              estCabecera);
+                ponerCelda(fila0, 1, nombre,                       estCabecera);
+                ponerCelda(fila0, 2, "Mes",                        estCabecera);
+                ponerCelda(fila0, 3, nombreMes + " " + anio,       estCabecera);
+                ponerCelda(fila0, 4, "Total horas",                estCabecera);
+                ponerCeldaNum(fila0, 5, totalHoras,                estCabecera);
 
                 // ── Fila 1: vacía ──
                 sheet.createRow(1);
@@ -560,17 +563,17 @@ public class parte_jefe_service {
                 int filaIdx = 3;
                 for (int i = 0; i < obras.size(); i++, filaIdx++) {
                     resumen_obra_dto o = obras.get(i);
-                    double hE = o.horas_electricas()    != null ? o.horas_electricas()    : 0.0;
-                    double hM = o.horas_mecanicas()     != null ? o.horas_mecanicas()     : 0.0;
-                    double pE = o.porcentaje_electrico() != null ? o.porcentaje_electrico() : 0.0;
-                    double pM = o.porcentaje_mecanico()  != null ? o.porcentaje_mecanico()  : 0.0;
+                    double hE = o.horas_electricas()     != null ? o.horas_electricas()     : 0.0;
+                    double hM = o.horas_mecanicas()      != null ? o.horas_mecanicas()      : 0.0;
+                    double pE = o.porcentaje_electrico()  != null ? o.porcentaje_electrico() : 0.0;
+                    double pM = o.porcentaje_mecanico()   != null ? o.porcentaje_mecanico()  : 0.0;
                     sumHE += hE;
                     sumHM += hM;
 
                     boolean par = i % 2 == 0;
                     org.apache.poi.ss.usermodel.Row fila = sheet.createRow(filaIdx);
-                    ponerCelda(fila, 0, o.nombre_obra() != null ? o.nombre_obra() : "--",  par ? estFilaPar : null);
-                    ponerCelda(fila, 1, o.codigo_obra() != null ? o.codigo_obra() : "--",  par ? estFilaPar : null);
+                    ponerCelda(fila, 0, o.nombre_obra() != null ? o.nombre_obra() : "--", par ? estFilaPar : null);
+                    ponerCelda(fila, 1, o.codigo_obra() != null ? o.codigo_obra() : "--", par ? estFilaPar : null);
                     ponerCeldaNum(fila, 2, hE, par ? estNumPar : estNum);
                     ponerCeldaNum(fila, 3, pE, par ? estNumPar : estNum);
                     ponerCeldaNum(fila, 4, hM, par ? estNumPar : estNum);
@@ -582,16 +585,16 @@ public class parte_jefe_service {
                 org.apache.poi.ss.usermodel.Row filaTot = sheet.createRow(filaIdx);
                 ponerCelda(filaTot, 0, "TOTAL", estTotal);
                 ponerCelda(filaTot, 1, "",      estTotal);
-                ponerCeldaNum(filaTot, 2, sumHE,              estNumTotal);
+                ponerCeldaNum(filaTot, 2, sumHE,               estNumTotal);
                 ponerCeldaNum(filaTot, 3, (sumHE / base) * 100, estNumTotal);
-                ponerCeldaNum(filaTot, 4, sumHM,              estNumTotal);
+                ponerCeldaNum(filaTot, 4, sumHM,               estNumTotal);
                 ponerCeldaNum(filaTot, 5, (sumHM / base) * 100, estNumTotal);
 
                 // ── Anchos de columna ──
                 sheet.setColumnWidth(0, 50 * 256);
                 sheet.setColumnWidth(1, 14 * 256);
                 sheet.setColumnWidth(2, 20 * 256);
-                sheet.setColumnWidth(3, 16 * 256);
+                sheet.setColumnWidth(3, 18 * 256);
                 sheet.setColumnWidth(4, 20 * 256);
                 sheet.setColumnWidth(5, 16 * 256);
             }
