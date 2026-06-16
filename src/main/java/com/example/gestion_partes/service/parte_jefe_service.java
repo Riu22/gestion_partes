@@ -329,8 +329,8 @@ public class parte_jefe_service {
             return new resumen_obra_dto(
                     o.nombre_obra(), o.codigo_obra(),
                     o.horas_electricas(), o.horas_mecanicas(),
-                    Math.round(pctE * 100.0) / 100.0,
-                    Math.round(pctM * 100.0) / 100.0);
+                    pctE,
+                    pctM);
         });
 
         List<resumen_parte_dto> partesDto = partes.stream()
@@ -454,5 +454,167 @@ public class parte_jefe_service {
             resultado.add(usuarioData);
         }
         return resultado;
+    }
+
+    // ─── EXCEL ────────────────────────────────────────────────────────────────
+
+    /*
+     * Genera un archivo Excel (.xlsx) con el resumen mensual de dedicación de
+     * todos los jefes de obra para el año y mes indicados.
+     *
+     * Estructura del Excel:
+     * - Una hoja por jefe de obra (nombre de hoja = nombre del jefe)
+     * - Cabecera con nombre del jefe y total de horas
+     * - Filas de obras con: nombre, código, horas eléctricas, % eléctrico,
+     *   horas mecánicas, % mecánico
+     * - Fila de totales al final de cada hoja
+     *
+     * Los valores numéricos se escriben como double directamente para preservar
+     * todos los decimales sin redondear.
+     */
+    public byte[] generarXlsxResumenMensual(int anio, int mes) throws Exception {
+        List<Map<String, Object>> usuarios = get_resumen_mensual_por_usuario(anio, mes);
+
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook wb =
+                     new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+
+            // ── Estilos reutilizables ──
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estCabecera = wb.createCellStyle();
+            estCabecera.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    new byte[]{(byte)0x15, (byte)0x65, (byte)0xC0}, null)); // azul oscuro
+            estCabecera.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+            org.apache.poi.xssf.usermodel.XSSFFont fCabecera = wb.createFont();
+            fCabecera.setBold(true);
+            fCabecera.setColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    new byte[]{(byte)0xFF,(byte)0xFF,(byte)0xFF}, null));
+            estCabecera.setFont(fCabecera);
+            estCabecera.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER);
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estColHead = wb.createCellStyle();
+            estColHead.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    new byte[]{(byte)0xE3,(byte)0xF2,(byte)0xFD}, null)); // azul pálido
+            estColHead.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+            org.apache.poi.xssf.usermodel.XSSFFont fColHead = wb.createFont();
+            fColHead.setBold(true);
+            estColHead.setFont(fColHead);
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estTotal = wb.createCellStyle();
+            estTotal.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    new byte[]{(byte)0xE8,(byte)0xF5,(byte)0xE9}, null)); // verde pálido
+            estTotal.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+            org.apache.poi.xssf.usermodel.XSSFFont fTotal = wb.createFont();
+            fTotal.setBold(true);
+            estTotal.setFont(fTotal);
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estFilaPar = wb.createCellStyle();
+            estFilaPar.setFillForegroundColor(new org.apache.poi.xssf.usermodel.XSSFColor(
+                    new byte[]{(byte)0xFA,(byte)0xFA,(byte)0xFA}, null));
+            estFilaPar.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+
+            // Formato numérico: todos los decimales que tenga el double
+            org.apache.poi.ss.usermodel.DataFormat fmt = wb.createDataFormat();
+            short fmtNum = fmt.getFormat("0.###############"); // hasta 15 decimales, sin ceros innecesarios
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estNum = wb.createCellStyle();
+            estNum.setDataFormat(fmtNum);
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estNumPar = wb.createCellStyle();
+            estNumPar.cloneStyleFrom(estFilaPar);
+            estNumPar.setDataFormat(fmtNum);
+
+            org.apache.poi.xssf.usermodel.XSSFCellStyle estNumTotal = wb.createCellStyle();
+            estNumTotal.cloneStyleFrom(estTotal);
+            estNumTotal.setDataFormat(fmtNum);
+
+            for (Map<String, Object> u : usuarios) {
+                String nombre = (String) u.getOrDefault("nombre", "Sin nombre");
+                double totalHoras = u.get("total_horas_laborables") instanceof Number n
+                        ? n.doubleValue() : 0.0;
+                @SuppressWarnings("unchecked")
+                List<resumen_obra_dto> obras = (List<resumen_obra_dto>) u.get("obras");
+
+                // Nombre de hoja: máx 31 chars, sin caracteres prohibidos por Excel
+                String nombreHoja = nombre.replaceAll("[\\\\/*?:\\[\\]]", "_");
+                if (nombreHoja.length() > 31) nombreHoja = nombreHoja.substring(0, 31);
+
+                org.apache.poi.ss.usermodel.Sheet sheet = wb.createSheet(nombreHoja);
+
+                // ── Fila 0: cabecera del jefe ──
+                org.apache.poi.ss.usermodel.Row fila0 = sheet.createRow(0);
+                ponerCelda(fila0, 0, "Jefe de obra", estCabecera);
+                ponerCelda(fila0, 1, nombre,         estCabecera);
+                ponerCelda(fila0, 2, "Total horas",  estCabecera);
+                ponerCeldaNum(fila0, 3, totalHoras,  estCabecera); // total en la cabecera sin formato decimal especial
+                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0,0,0,0));
+
+                // ── Fila 1: vacía ──
+                sheet.createRow(1);
+
+                // ── Fila 2: cabeceras de columnas ──
+                org.apache.poi.ss.usermodel.Row fila2 = sheet.createRow(2);
+                String[] cols = {"Obra","Código","Horas eléctricas","% Eléctrico","Horas mecánicas","% Mecánico"};
+                for (int c = 0; c < cols.length; c++) ponerCelda(fila2, c, cols[c], estColHead);
+
+                // ── Filas de obras ──
+                double sumHE = 0, sumHM = 0;
+                int filaIdx = 3;
+                for (int i = 0; i < obras.size(); i++, filaIdx++) {
+                    resumen_obra_dto o = obras.get(i);
+                    double hE = o.horas_electricas()    != null ? o.horas_electricas()    : 0.0;
+                    double hM = o.horas_mecanicas()     != null ? o.horas_mecanicas()     : 0.0;
+                    double pE = o.porcentaje_electrico() != null ? o.porcentaje_electrico() : 0.0;
+                    double pM = o.porcentaje_mecanico()  != null ? o.porcentaje_mecanico()  : 0.0;
+                    sumHE += hE;
+                    sumHM += hM;
+
+                    boolean par = i % 2 == 0;
+                    org.apache.poi.ss.usermodel.Row fila = sheet.createRow(filaIdx);
+                    ponerCelda(fila, 0, o.nombre_obra() != null ? o.nombre_obra() : "--",  par ? estFilaPar : null);
+                    ponerCelda(fila, 1, o.codigo_obra() != null ? o.codigo_obra() : "--",  par ? estFilaPar : null);
+                    ponerCeldaNum(fila, 2, hE, par ? estNumPar : estNum);
+                    ponerCeldaNum(fila, 3, pE, par ? estNumPar : estNum);
+                    ponerCeldaNum(fila, 4, hM, par ? estNumPar : estNum);
+                    ponerCeldaNum(fila, 5, pM, par ? estNumPar : estNum);
+                }
+
+                // ── Fila de totales ──
+                double base = totalHoras > 0 ? totalHoras : 1.0;
+                org.apache.poi.ss.usermodel.Row filaTot = sheet.createRow(filaIdx);
+                ponerCelda(filaTot, 0, "TOTAL", estTotal);
+                ponerCelda(filaTot, 1, "",      estTotal);
+                ponerCeldaNum(filaTot, 2, sumHE,              estNumTotal);
+                ponerCeldaNum(filaTot, 3, (sumHE / base) * 100, estNumTotal);
+                ponerCeldaNum(filaTot, 4, sumHM,              estNumTotal);
+                ponerCeldaNum(filaTot, 5, (sumHM / base) * 100, estNumTotal);
+
+                // ── Anchos de columna ──
+                sheet.setColumnWidth(0, 50 * 256);
+                sheet.setColumnWidth(1, 14 * 256);
+                sheet.setColumnWidth(2, 20 * 256);
+                sheet.setColumnWidth(3, 16 * 256);
+                sheet.setColumnWidth(4, 20 * 256);
+                sheet.setColumnWidth(5, 16 * 256);
+            }
+
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            wb.write(baos);
+            return baos.toByteArray();
+        }
+    }
+
+    /* Escribe una celda de texto con estilo opcional. */
+    private void ponerCelda(org.apache.poi.ss.usermodel.Row row, int col, String val,
+                            org.apache.poi.ss.usermodel.CellStyle style) {
+        org.apache.poi.ss.usermodel.Cell c = row.createCell(col);
+        c.setCellValue(val);
+        if (style != null) c.setCellStyle(style);
+    }
+
+    /* Escribe una celda numérica (double) con estilo. Preserva todos los decimales. */
+    private void ponerCeldaNum(org.apache.poi.ss.usermodel.Row row, int col, double val,
+                               org.apache.poi.ss.usermodel.CellStyle style) {
+        org.apache.poi.ss.usermodel.Cell c = row.createCell(col);
+        c.setCellValue(val);
+        if (style != null) c.setCellStyle(style);
     }
 }

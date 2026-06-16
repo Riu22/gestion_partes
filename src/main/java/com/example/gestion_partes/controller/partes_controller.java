@@ -273,4 +273,21 @@ public class partes_controller {
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new RuntimeException("Parte no encontrado"));
     }
+
+    /* GET /resumen-mensual-xlsx: descarga el resumen mensual de jefes de obra en formato Excel.
+   Solo accesible para ADMINISTRACION y GESTION. */
+    @GetMapping("/resumen-mensual-xlsx")
+    @PreAuthorize("hasAnyRole('ADMINISTRACION','GESTION')")
+    public ResponseEntity<byte[]> resumenMensualXlsx(
+            @RequestParam int anio,
+            @RequestParam int mes) throws Exception {
+
+        byte[] bytes = parte_jefe_service.generarXlsxResumenMensual(anio, mes);
+        String nombreArchivo = "dedicacion_" + mes + "_" + anio + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"" + nombreArchivo + "\"")
+                .header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .body(bytes);
+    }
 }
