@@ -545,7 +545,7 @@ public class parte_jefe_service {
                 ponerCelda(fila0, 1, nombre,         estCabecera);
                 ponerCelda(fila0, 2, "Total horas",  estCabecera);
                 ponerCeldaNum(fila0, 3, totalHoras,  estCabecera); // total en la cabecera sin formato decimal especial
-                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0,0,0,0));
+                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 3));
 
                 // ── Fila 1: vacía ──
                 sheet.createRow(1);
